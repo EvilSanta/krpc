@@ -96,18 +96,18 @@ csharp_assembly_info(
 
 test_deps = [
     '//server:KRPC',
-    '//tools/build/mono-3.5:Moq',
+    '//tools/build/mono-4.5:Moq',
     '//tools/build/ksp:Google.Protobuf',
     '//tools/build/ksp:Assembly-CSharp',
     '//tools/build/ksp:Assembly-CSharp-firstpass',
     '//tools/build/ksp:UnityEngine',
     '//tools/build/ksp:UnityEngine.UI',
-    '//tools/build/mono-3.5:mscorlib',
-    '//tools/build/mono-3.5:System',
-    '//tools/build/mono-3.5:System.Core',
-    '//tools/build/mono-3.5:System.Runtime',
-    '//tools/build/mono-3.5:System.IO',
-    '//tools/build/mono-3.5:System.Xml'
+    '//tools/build/mono-4.5:mscorlib',
+    '//tools/build/mono-4.5:System',
+    '//tools/build/mono-4.5:System.Core',
+    '//tools/build/mono-4.5:System.Runtime',
+    '//tools/build/mono-4.5:System.IO',
+    '//tools/build/mono-4.5:System.Xml'
 ]
 
 csharp_library(

@@ -46,15 +46,15 @@ py_sdist(
         'setup.py', 'MANIFEST.in', '//:python_version',
         '//tools/ServiceDefinitions',
         '//tools/ServiceDefinitions:KRPC',
-        '//tools/build/mono-3.5:Google.Protobuf.dll',
-        '//tools/build/mono-3.5:Newtonsoft.Json.dll',
-        '//tools/build/mono-3.5:NDesk.Options.dll',
-        '//tools/build/mono-3.5:mscorlib',
-        '//tools/build/mono-3.5:System',
-        '//tools/build/mono-3.5:System.Core',
-#        '//tools/build/mono-4.5:System.Runtime',
-#        '//tools/build/mono-4.5:System.IO',
-        '//tools/build/mono-3.5:System.Xml'
+        '//tools/build/mono-4.5:Google.Protobuf.dll',
+        '//tools/build/mono-4.5:Newtonsoft.Json.dll',
+        '//tools/build/mono-4.5:NDesk.Options.dll',
+        '//tools/build/mono-4.5:mscorlib',
+        '//tools/build/mono-4.5:System',
+        '//tools/build/mono-4.5:System.Core',
+        '//tools/build/mono-4.5:System.Runtime',
+        '//tools/build/mono-4.5:System.IO',
+        '//tools/build/mono-4.5:System.Xml'
     ] + glob(['krpctools/**/*.py', 'krpctools/**/*.tmpl']),
     path_map = {
         'version.py': 'krpctools/version.py',
@@ -62,7 +62,7 @@ py_sdist(
         'tools/ServiceDefinitions/ServiceDefinitions.exe': 'krpctools/bin/ServiceDefinitions.exe',
         'tools/ServiceDefinitions/KRPC.dll': 'krpctools/bin/KRPC.dll',
         'tools/ServiceDefinitions/KRPC.xml': 'krpctools/bin/KRPC.xml',
-        'tools/build/mono-3.5/': 'krpctools/bin/'
+        'tools/build/mono-4.5/': 'krpctools/bin/'
     }
 )
 
