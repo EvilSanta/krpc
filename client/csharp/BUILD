@@ -52,13 +52,13 @@ srcs = glob(['src/**/*.cs']) + [
     ':services-ui'
 ]
 deps = [
-    '//tools/build/mono-4.5:Google.Protobuf',
-    '//tools/build/mono-4.5:mscorlib',
-    '//tools/build/mono-4.5:System',
-    '//tools/build/mono-4.5:System.Core',
-    '//tools/build/mono-4.5:System.Runtime',
-    '//tools/build/mono-4.5:System.IO',
-    '//tools/build/mono-4.5:System.Xml'
+    '//tools/build/mono-3.5:Google.Protobuf',
+    '//tools/build/mono-3.5:mscorlib',
+    '//tools/build/mono-3.5:System',
+    '//tools/build/mono-3.5:System.Core',
+#    '//tools/build/mono-3.5:System.Runtime',
+#    '//tools/build/mono-3.5:System.IO',
+    '//tools/build/mono-3.5:System.Xml'
 ]
 
 csharp_library(
@@ -144,7 +144,7 @@ csharp_assembly_info(
     cls_compliant = False
 )
 
-test_deps = [':KRPC.Client', '//tools/build/mono-4.5:Moq'] + deps
+test_deps = [':KRPC.Client', '//tools/build/mono-3.5:Moq'] + deps
 
 csharp_library(
     name = 'KRPC.Client.Test',
