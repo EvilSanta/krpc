@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using Google.Protobuf;
+using KRPC.Utils;
 
 namespace KRPC.Client
 {
@@ -209,7 +210,7 @@ namespace KRPC.Client
         {
             var encodedTuple = new Schema.KRPC.Tuple ();
             var valueTypes = type.GetGenericArguments ().ToArray ();
-            var genericType = Type.GetType ("System.Tuple`" + valueTypes.Length.ToString());
+            var genericType = Type.GetType ("KRPC.Utils.Tuple`" + valueTypes.Length.ToString());
             var tupleType = genericType.MakeGenericType (valueTypes);
             using (var internalBuffer = new MemoryStream ()) {
                 var internalStream = new CodedOutputStream (internalBuffer);
@@ -323,7 +324,7 @@ namespace KRPC.Client
         {
             var encodedTuple = Schema.KRPC.Tuple.Parser.ParseFrom (stream);
             var valueTypes = type.GetGenericArguments ().ToArray ();
-            var genericType = Type.GetType ("System.Tuple`" + valueTypes.Length.ToString());
+            var genericType = Type.GetType ("KRPC.Utils.Tuple`" + valueTypes.Length.ToString());
             var values = new object[valueTypes.Length];
             for (int i = 0; i < valueTypes.Length; i++) {
                 var item = encodedTuple.Items [i];

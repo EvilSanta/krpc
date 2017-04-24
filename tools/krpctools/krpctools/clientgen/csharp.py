@@ -62,7 +62,7 @@ class CsharpGenerator(Generator):
                 return 'global::Test.%s' % x
         elif isinstance(typ, krpc.types.TupleType):
             value_types = split_type_string(typ.protobuf_type[6:-1])
-            return 'global::System.Tuple<%s>' % \
+            return 'global::KRPC.Utils.Tuple<%s>' % \
                 ','.join(self.parse_type(self.types.as_type(t))
                          for t in value_types)
         elif isinstance(typ, krpc.types.ListType):
@@ -170,7 +170,7 @@ class CsharpGenerator(Generator):
                 continue
             typ = parameter['type']
             default_value = parameter['default_value']
-            if typ.startswith('global::System.Tuple') or \
+            if typ.startswith('global::KRPC.Utils.Tuple') or \
                typ.startswith('global::System.Collections.Generic.IList') or \
                typ.startswith('global::System.Collections.Generic.ISet') or \
                typ.startswith('global::System.Collections' +
