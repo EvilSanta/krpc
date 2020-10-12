@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using KRPC.Service.Attributes;
 using KRPC.SpaceCenter.ExtensionMethods;
 using KRPC.Utils;
 using Tuple3 = KRPC.Utils.Tuple<double, double, double>;
+using TupleV3 = KRPC.Utils.Tuple<Vector3d, Vector3d>;
+using TupleT3 = KRPC.Utils.Tuple<KRPC.Utils.Tuple<double, double, double>, KRPC.Utils.Tuple<double, double, double>>;
 
 namespace KRPC.SpaceCenter.Services.Parts
 {
@@ -18,7 +21,12 @@ namespace KRPC.SpaceCenter.Services.Parts
 
         internal static bool Is (Part part)
         {
-            return part.InternalPart.HasModule<ModuleRCS> ();
+            return Is (part.InternalPart);
+        }
+
+        internal static bool Is (global::Part part)
+        {
+            return part.HasModule<ModuleRCS> ();
         }
 
         internal RCS (Part part)
@@ -53,14 +61,14 @@ namespace KRPC.SpaceCenter.Services.Parts
 
         /// <summary>
         /// Whether the RCS thrusters are active.
-        /// An RCS thruster is inactive if the RCS action group is disabled (<see cref="Control.RCS"/>),
-        /// the RCS thruster itself is not enabled (<see cref="Enabled"/>) or
-        /// it is covered by a fairing (<see cref="Part.Shielded"/>).
+        /// An RCS thruster is inactive if the RCS action group is disabled
+        /// (<see cref="Control.RCS"/>), the RCS thruster itself is not enabled
+        /// (<see cref="Enabled"/>) or it is covered by a fairing (<see cref="Part.Shielded"/>).
         /// </summary>
         [KRPCProperty]
         public bool Active {
             get {
-                //TODO: what about rcs.shieldedCanThrust?
+                // TODO: what about rcs.shieldedCanThrust?
                 var p = Part.InternalPart;
                 return
                 p.vessel.ActionGroups.groups [BaseAction.GetGroupIndex (KSPActionGroup.RCS)] &&
@@ -135,46 +143,122 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The available torque in the pitch, roll and yaw axes of the vessel, in Newton meters.
-        /// These axes correspond to the coordinate axes of the <see cref="Vessel.ReferenceFrame" />.
-        /// Returns zero if the RCS is inactive.
+        /// The available torque, in Newton meters, that can be produced by this RCS,
+        /// in the positive and negative pitch, roll and yaw axes of the vessel. These axes
+        /// correspond to the coordinate axes of the <see cref="Vessel.ReferenceFrame"/>.
+        /// Returns zero if RCS is disable.
         /// </summary>
         [KRPCProperty]
-        public Tuple3 AvailableTorque {
-            get { return AvailableTorqueVector.ToTuple (); }
+        [SuppressMessage ("Gendarme.Rules.Design.Generic", "DoNotExposeNestedGenericSignaturesRule")]
+        public TupleT3 AvailableTorque {
+            get { return AvailableTorqueVectors.ToTuple (); }
         }
 
-        internal Vector3d AvailableTorqueVector {
+        [SuppressMessage ("Gendarme.Rules.Design.Generic", "DoNotExposeNestedGenericSignaturesRule")]
+        internal TupleV3 AvailableTorqueVectors {
             get {
                 if (!Active)
-                    return Vector3d.zero;
-                return rcs.GetPotentialTorque () * 1000f;
+                    return ITorqueProviderExtensions.zero;
+                return GetTorqueVectors();
             }
+        }
+
+        /// <summary>
+        /// Calculates available torque vectors.
+        /// We use this custom code rather than KSPs ITorqueProvider as it produces erroneous values.
+        /// </summary>
+        [SuppressMessage ("Gendarme.Rules.Smells", "AvoidLongMethodsRule")]
+        [SuppressMessage ("Gendarme.Rules.Design", "ConsiderConvertingMethodToPropertyRule")]
+        private TupleV3 GetTorqueVectors()
+        {
+            var frame = Part.Vessel.ReferenceFrame;
+            var thrust = MaxThrust;
+            double torqueX = 0;
+            double torqueXn = 0;
+            double torqueY = 0;
+            double torqueYn = 0;
+            double torqueZ = 0;
+            double torqueZn = 0;
+            foreach (var thruster in Thrusters) {
+                // torque = cross product of position and force
+                var thrustPosition = thruster.ThrustPosition(frame);
+                var thrustDirection = thruster.ThrustDirection(frame);
+                var forceX = thrustDirection.Item1 * thrust;
+                var forceY = thrustDirection.Item2 * thrust;
+                var forceZ = thrustDirection.Item3 * thrust;
+                var posX = thrustPosition.Item1;
+                var posY = thrustPosition.Item2;
+                var posZ = thrustPosition.Item3;
+                double torque = 0;
+                // Torque around X axis (pitch)
+                torque = posY * forceZ - posZ * forceY;
+                if (torque > 0) torqueX += torque;
+                else torqueXn += -torque;
+                // Torque around Y axis (yaw)
+                torque = posZ * forceX - posX * forceZ;
+                if (torque > 0) torqueY += torque;
+                else torqueYn += -torque;
+                // Torque around Z axis (roll)
+                torque = posX * forceY - posY * forceX;
+                if (torque > 0) torqueZ += torque;
+                else torqueZn += -torque;
+            }
+            return new TupleV3(
+                new Vector3d(torqueX, torqueY, torqueZ),
+                new Vector3d(-torqueXn, -torqueYn, -torqueZn));
         }
 
         /// <summary>
         /// Get the thrust of the RCS thruster with the given atmospheric conditions, in Newtons.
         /// </summary>
-        float GetThrust (double pressure)
+        float GetThrust (double throttle, double pressure)
         {
             pressure *= PhysicsGlobals.KpaToAtmospheres;
-            return 1000f * (float)rcs.maxFuelFlow * (float)rcs.G * rcs.atmosphereCurve.Evaluate ((float)pressure);
+            return 1000f * (float)rcs.maxFuelFlow * (float)throttle * (float)rcs.G * rcs.atmosphereCurve.Evaluate ((float)pressure);
         }
 
         /// <summary>
-        /// The maximum amount of thrust that can be produced by the RCS thrusters when active, in Newtons.
+        /// The amount of thrust, in Newtons, that would be produced by the thruster when activated.
+        /// Returns zero if the thruster does not have any fuel.
+        /// Takes the thrusters current <see cref="ThrustLimit"/> and atmospheric conditions
+        /// into account.
+        /// </summary>
+        [KRPCProperty]
+        public float AvailableThrust {
+            get {
+                if (!HasFuel)
+                    return 0f;
+                return GetThrust (ThrustLimit, rcs.vessel.staticPressurekPa);
+            }
+        }
+
+        /// <summary>
+        /// The maximum amount of thrust that can be produced by the RCS thrusters when active,
+        /// in Newtons.
+        /// Takes the thrusters current <see cref="ThrustLimit"/> and atmospheric conditions
+        /// into account.
         /// </summary>
         [KRPCProperty]
         public float MaxThrust {
-            get { return GetThrust (rcs.vessel.staticPressurekPa); }
+            get { return GetThrust (1f, rcs.vessel.staticPressurekPa); }
         }
 
         /// <summary>
-        /// The maximum amount of thrust that can be produced by the RCS thrusters when active in a vacuum, in Newtons.
+        /// The maximum amount of thrust that can be produced by the RCS thrusters when active
+        /// in a vacuum, in Newtons.
         /// </summary>
         [KRPCProperty]
         public float MaxVacuumThrust {
             get { return rcs.thrusterPower * 1000f; }
+        }
+
+        /// <summary>
+        /// The thrust limiter of the thruster. A value between 0 and 1.
+        /// </summary>
+        [KRPCProperty]
+        public float ThrustLimit {
+            get { return rcs.thrustPercentage / 100f; }
+            set { rcs.thrustPercentage = (value * 100f).Clamp (0f, 100f); }
         }
 
         /// <summary>
@@ -211,6 +295,16 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
+        /// Ensures the propellant amounts have been updated, which may not have
+        /// happened if the engine has not been activated.
+        /// </summary>
+        void UpdateConnectedResources()
+        {
+            foreach (var propellant in rcs.propellants)
+                propellant.UpdateConnectedResources(rcs.part);
+        }
+
+        /// <summary>
         /// The names of resources that the RCS consumes.
         /// </summary>
         [KRPCProperty]
@@ -224,7 +318,9 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         [KRPCProperty]
         public IDictionary<string, float> PropellantRatios {
-            get {
+            get
+            {
+                UpdateConnectedResources();
                 var max = rcs.propellants.Max (p => p.ratio);
                 return rcs.propellants.ToDictionary (p => p.name, p => p.ratio / max);
             }
@@ -233,15 +329,13 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// <summary>
         /// Whether the RCS has fuel available.
         /// </summary>
-        /// <remarks>
-        /// The RCS thruster must be activated for this property to update correctly.
-        /// </remarks>
-        //FIXME: should not have to enable the RCS thruster for this to update
         [KRPCProperty]
         public bool HasFuel {
-            get {
+            get
+            {
+                UpdateConnectedResources();
                 foreach (var propellant in rcs.propellants)
-                    if (propellant.isDeprived && !propellant.ignoreForIsp)
+                    if (propellant.actualTotalAvailable < 0.001)
                         return false;
                 return true;
             }

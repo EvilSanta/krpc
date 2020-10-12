@@ -1,7 +1,8 @@
-load('/tools/build/csharp', 'csharp_binary', 'csharp_library', 'csharp_assembly_info', 'csharp_gendarme_test')
-load('/tools/build/protobuf/csharp', 'protobuf_csharp')
-load('/tools/ServiceDefinitions/build', 'service_definitions')
-load('/config', 'assembly_version', 'author')
+load('//tools/build:csharp.bzl', 'csharp_binary', 'csharp_library', 'csharp_assembly_info', 'csharp_gendarme_test')
+load('//tools/build/protobuf:csharp.bzl', 'protobuf_csharp')
+load('//tools/build:pkg.bzl', 'pkg_zip')
+load('//tools/ServiceDefinitions:build.bzl', 'service_definitions')
+load('//:config.bzl', 'version', 'assembly_version', 'author')
 
 csharp_assembly_info(
     name = 'AssemblyInfo',
@@ -15,22 +16,37 @@ srcs = ['src/TestService.cs', ':AssemblyInfo']
 deps = [
     '//tools/ServiceDefinitions:KRPC',
     '//tools/build/mono-4.5:Google.Protobuf',
-    '//tools/build/ksp:Assembly-CSharp',
-    '//tools/build/ksp:Assembly-CSharp-firstpass',
-    '//tools/build/ksp:UnityEngine',
-    '//tools/build/ksp:UnityEngine.UI',
-    '//tools/build/ksp:KSPUtil',
     '//tools/build/mono-4.5:mscorlib',
     '//tools/build/mono-4.5:System',
     '//tools/build/mono-4.5:System.Core',
     '//tools/build/mono-4.5:System.Runtime',
     '//tools/build/mono-4.5:System.IO',
     '//tools/build/mono-4.5:System.Xml',
-    '//tools/build/mono-4.5:System.Xml.Linq'
+    '//tools/build/ksp:KRPC.IO.Ports'
 ]
 
 exe_srcs = srcs + ['src/Program.cs']
 exe_deps = deps + ['//tools/build/mono-4.5:NDesk.Options']
+
+pkg_zip(
+    name = 'archive',
+    out = 'TestServer-%s.zip' % version,
+    files = [
+        ':README.txt',
+        ':TestServer',
+        '//:version',
+        '//tools/build/protobuf:LICENSE'
+    ] + exe_deps,
+    path_map = {
+        'tools/TestServer/': '',
+        'tools/build/protobuf/LICENSE': 'LICENSE.protobuf',
+        'tools/build/mono-4.5/': '',
+        'tools/build/ksp/': '',
+        'tools/ServiceDefinitions/': ''
+    },
+    exclude = ['*.mdb', 'tools/TestServer/TestServer'],
+    visibility = ['//visibility:public']
+)
 
 csharp_binary(
     name = 'TestServer',

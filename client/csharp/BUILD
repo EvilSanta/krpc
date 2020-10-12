@@ -1,32 +1,39 @@
-load('/tools/build/csharp', 'csharp_library', 'csharp_assembly_info', 'nuget_package')
-load('/tools/build/csharp', 'csharp_nunit_test', 'csharp_gendarme_test')
-load('/tools/build/client_test', 'client_test')
-load('/tools/krpctools/clientgen', 'clientgen_csharp')
-load('/tools/build/pkg', 'pkg_zip')
-load('/config', 'version', 'assembly_version', 'nuget_version', 'author')
+load('//tools/build:csharp.bzl', 'csharp_library', 'csharp_assembly_info', 'nuget_package')
+load('//tools/build:csharp.bzl', 'csharp_nunit_test', 'csharp_gendarme_test')
+load('//tools/build:client_test.bzl', 'client_test')
+load('//tools/krpctools:clientgen.bzl', 'clientgen_csharp')
+load('//tools/build:pkg.bzl', 'pkg_zip')
+load('//:config.bzl', 'version', 'assembly_version', 'nuget_version', 'author')
 
 pkg_zip(
     name = 'csharp',
     out = 'krpc-csharp-%s.zip' % version,
     files = ['//:readme', '//:version', 'CHANGES.txt',
              'LICENSE', '//:COPYING', '//:COPYING.LESSER',
-             ':KRPC.Client'],
-    path_map = {'client/csharp/': ''},
+             ':KRPC.Client', ':KRPC.Client-net35'],
+    path_map = {
+        'client/csharp/KRPC.Client-net35.dll': 'net35/KRPC.Client.dll',
+        'client/csharp/KRPC.Client-net35.xml': 'net35/KRPC.Client.xml',
+        'client/csharp/KRPC.Client.dll': 'net45/KRPC.Client.dll',
+        'client/csharp/KRPC.Client.xml': 'net45/KRPC.Client.xml',
+        'client/csharp/': ''
+    },
     exclude = ['*.mdb'],
     visibility = ['//visibility:public']
 )
 
 nuget_package(
     name = 'nuget',
-    assembly = ':KRPC.Client',
     id = 'KRPC.Client',
+    assembly = ':KRPC.Client',
+    assembly_net35 = ':KRPC.Client-net35',
     version = nuget_version,
     author = author,
     description = 'C# client for kRPC',
     project_url = 'https://github.com/krpc/krpc',
     license_url = 'https://github.com/krpc/krpc/blob/master/LICENSE',
     deps = {
-        'Google.Protobuf': '3.0.0-beta3'
+        'Google.Protobuf': '3.3.0'
     }
 )
 
@@ -58,14 +65,28 @@ deps = [
     '//tools/build/mono-4.5:System.Core',
     '//tools/build/mono-4.5:System.Runtime',
     '//tools/build/mono-4.5:System.IO',
-    '//tools/build/mono-4.5:System.Xml',
-    '//tools/build/mono-4.5:System.Xml.Linq'
+    '//tools/build/mono-4.5:System.Xml'
+]
+deps_net35 = [
+    '//tools/build/ksp:Google.Protobuf',
+    '//tools/build/ksp:mscorlib',
+    '//tools/build/ksp:System',
+    '//tools/build/ksp:System.Core',
+    '//tools/build/ksp:System.Xml'
 ]
 
 csharp_library(
     name = 'KRPC.Client',
     srcs = srcs,
     deps = deps,
+    visibility = ['//visibility:public']
+)
+
+csharp_library(
+    name = 'KRPC.Client-net35',
+    srcs = srcs,
+    deps = deps_net35,
+    define = ['NET35'],
     visibility = ['//visibility:public']
 )
 
@@ -120,7 +141,7 @@ clientgen_csharp(
 
 test_suite(
     name = 'test',
-    tests = [':client', ':gendarme-KRPC.Client', ':gendarme-KRPC.Client.Test'],
+    tests = [':client', ':lint'],
     visibility = ['//:__pkg__']
 )
 
@@ -129,11 +150,16 @@ test_suite(
     tests = [':client']
 )
 
+test_suite(
+    name = 'lint',
+    tests = [':gendarme-KRPC.Client', ':gendarme-KRPC.Client.Test']
+)
+
 client_test(
     name = 'client',
-    test_executable = ':KRPC.Client.Test',
+    test_executable = ':test-KRPC.Client',
     server_executable = '//tools/TestServer',
-    tags = ['requires-network'],
+    tags = ['local', 'requires-network'],
     size = 'small'
 )
 
@@ -145,16 +171,26 @@ csharp_assembly_info(
     cls_compliant = False
 )
 
-csharp_nunit_test(
+test_deps = [':KRPC.Client', '//tools/build/mono-4.5:Moq'] + deps
+
+csharp_library(
     name = 'KRPC.Client.Test',
     srcs = glob(['test/**/*.cs']) + [':TestAssemblyInfo'] + [':services-testservice'],
-    deps = [':KRPC.Client', '//tools/build/mono-4.5:Moq'] + deps,
+    deps = test_deps,
+    nunit_test = True,
     optimize = False,
     define = ['CODE_ANALYSIS'],
     nowarn = ['1591', '1573'],
-    size = 'small',
-    tags = ['requires-network'],
     visibility = ['//:__pkg__']
+)
+
+csharp_nunit_test(
+    name = 'test-KRPC.Client',
+    lib = ':KRPC.Client.Test',
+    deps = test_deps,
+    size = 'small',
+    # FIXME: need to run test outside the sandbox to work around nunit file accesses
+    tags = ['local', 'requires-network']
 )
 
 clientgen_csharp(

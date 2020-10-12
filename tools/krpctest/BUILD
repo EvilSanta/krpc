@@ -1,5 +1,5 @@
-load('/tools/build/python', 'py_sdist', 'py_test', 'py3_test', 'py_lint_test')
-load('/config', 'version', 'python_version')
+load('//tools/build:python.bzl', 'py_sdist', 'py2_test', 'py3_test', 'py_lint_test')
+load('//:config.bzl', 'version', 'python_version')
 
 py_sdist(
     name = 'krpctest',
@@ -9,6 +9,7 @@ py_sdist(
         'LICENSE', '//:COPYING',
         'setup.py', 'MANIFEST.in', '//:python_version',
         'krpctest/krpctest.sfs',
+        'krpctest/krpctest_career.sfs',
     ] + glob(['krpctest/**/*.py']),
     path_map = {
         'version.py': 'krpctest/version.py',
@@ -33,7 +34,7 @@ deps = [
     '@python_protobuf//file'
 ]
 
-py_test(
+py2_test(
     name = 'test2',
     src = ':krpctest',
     pkg = 'krpctest-'+python_version,
@@ -51,9 +52,9 @@ py3_test(
 
 py_lint_test(
     name = 'lint',
-    src = ':krpctest',
-    pkg = 'krpctest',
-    deps = deps + ['@python_enum34//file'],
-    rcfile = 'pylint.rc',
+    pkg = ':krpctest',
+    pkg_name = 'krpctest',
+    deps = deps,
+    pylint_config = 'pylint.rc',
     size = 'small'
 )

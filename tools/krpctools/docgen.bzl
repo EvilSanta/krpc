@@ -1,7 +1,7 @@
-def _outputs(attr):
+def _outputs(outdir, src):
     return {
-        'out': attr.outdir + '/' + attr.src.name.replace('.tmpl','.rst'),
-        'documented': attr.outdir + '/' + attr.src.name.replace('.tmpl','.documented.txt')
+        'out': outdir + '/' + src.name.replace('.tmpl','.rst'),
+        'documented': outdir + '/' + src.name.replace('.tmpl','.documented.txt')
     }
 
 def _impl(ctx):
@@ -19,7 +19,7 @@ def _impl(ctx):
     ]
     args.extend([f.path for f in ctx.files.defs])
 
-    ctx.action(
+    ctx.actions.run(
         inputs = ctx.files.defs + [src, ctx.file._order],
         outputs = [out, documented],
         progress_message = 'Generating %s documentation %s' % (language, out.path),
@@ -32,10 +32,11 @@ docgen = rule(
     attrs = {
         'outdir': attr.string(mandatory=True),
         'language': attr.string(mandatory=True),
-        'src': attr.label(allow_files=True, single_file=True),
-        'defs': attr.label_list(allow_files=True, mandatory=True, non_empty=True),
-        '_docgen': attr.label(default=Label('//tools/krpctools:docgen'), executable=True, allow_files=True, single_file=True),
-        '_order': attr.label(default=Label('//doc:order.txt'), allow_files=True, single_file=True)
+        'src': attr.label(allow_single_file=True),
+        'defs': attr.label_list(allow_files=True, mandatory=True, allow_empty=True),
+        '_docgen': attr.label(default=Label('//tools/krpctools:docgen'),
+                              executable=True, allow_single_file=True, cfg='host'),
+        '_order': attr.label(default=Label('//doc:order.txt'), allow_single_file=True)
     },
     outputs = _outputs
 )

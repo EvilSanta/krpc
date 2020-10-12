@@ -1,11 +1,17 @@
-using System;
 using UnityEngine;
 
 namespace KRPC.Utils
 {
     sealed class RectStorage : ConfigurationStorageNode
     {
-        [Persistent] Single x, y, width, height;
+        [Persistent]
+        float x;
+        [Persistent]
+        float y;
+        [Persistent]
+        float width;
+        [Persistent]
+        float height;
 
         public static RectStorage FromRect (Rect rect)
         {

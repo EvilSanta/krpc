@@ -37,6 +37,8 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml" />
     <Reference Include="Assembly-CSharp">
       <HintPath>..\..\lib\ksp\KSP_Data\Managed\Assembly-CSharp.dll</HintPath>
     </Reference>
@@ -49,27 +51,22 @@
     <Reference Include="UnityEngine.UI">
       <HintPath>..\..\lib\ksp\KSP_Data\Managed\UnityEngine.UI.dll</HintPath>
     </Reference>
-    <Reference Include="KSPUtil">
-      <HintPath>..\..\lib\ksp\KSP_Data\Managed\KSPUtil.dll</HintPath>
+    <Reference Include="Google.Protobuf">
+      <HintPath>..\..\bazel-genfiles\tools\cslibs\net45\Google.Protobuf.dll</HintPath>
+    </Reference>
+    <Reference Include="KRPC.IO.Ports">
+      <HintPath>..\..\bazel-genfiles\tools\cslibs\KRPC.IO.Ports.dll</HintPath>
     </Reference>
     <Reference Include="nunit.framework">
-      <HintPath>..\..\bazel-krpc\external\csharp_nunit\NUnit-2.6.4\bin\framework\nunit.framework.dll</HintPath>
+      <HintPath>..\..\bazel-genfiles\tools\cslibs\nunit.framework.dll</HintPath>
       <Package>nunit</Package>
     </Reference>
     <Reference Include="Moq">
-      <HintPath>..\..\bazel-krpc\external\csharp_moq\lib\net40\Moq.dll</HintPath>
+      <HintPath>..\..\bazel-genfiles\tools\cslibs\net40\Moq.dll</HintPath>
+      <Package>Moq</Package>
     </Reference>
-    <Reference Include="Google.Protobuf">
-      <HintPath>..\..\bazel-krpc\external\csharp_protobuf_net35\file\Google.Protobuf.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Core" />
-    <Reference Include="System.Xml" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.IO">
-      <HintPath>..\..\bazel-krpc\lib\mono-4.5\Facades\System.IO.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Runtime">
-      <HintPath>..\..\bazel-krpc\lib\mono-4.5\Facades\System.Runtime.dll</HintPath>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\..\bazel-genfiles\tools\cslibs\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -79,22 +76,37 @@
     <Compile Include="ConfigurationTest.cs" />
     <Compile Include="Continuations\ParameterizedContinuationTest.cs" />
     <Compile Include="Server\ClientRequestingConnectionArgsTest.cs" />
+    <Compile Include="Server\HTTP\RequestTest.cs" />
+    <Compile Include="Server\HTTP\ResponseTest.cs" />
     <Compile Include="Server\ProtocolBuffers\EncoderTest.cs" />
     <Compile Include="Server\ProtocolBuffers\RPCServerTest.cs" />
     <Compile Include="Server\ProtocolBuffers\RPCStreamTest.cs" />
     <Compile Include="Server\ProtocolBuffers\SchemaTest.cs" />
     <Compile Include="Server\ProtocolBuffers\StreamServerTest.cs" />
     <Compile Include="Server\ProtocolBuffers\StreamStreamTest.cs" />
+    <Compile Include="Server\ProtocolBuffers\TestingTools.cs" />
+    <Compile Include="Server\SerialIO\ByteClientTest.cs" />
+    <Compile Include="Server\SerialIO\RPCServerTest.cs" />
+    <Compile Include="Server\SerialIO\RPCStreamTest.cs" />
+    <Compile Include="Server\SerialIO\TestingTools.cs" />
     <Compile Include="Server\TCP\AssumptionsTest.cs" />
     <Compile Include="Server\TCP\NetworkInformationTest.cs" />
     <Compile Include="Server\TCP\TCPClientTest.cs" />
     <Compile Include="Server\TCP\TCPServerTest.cs" />
     <Compile Include="Server\TestClient.cs" />
     <Compile Include="Server\TestStream.cs" />
+    <Compile Include="Server\WebSockets\FrameTest.cs" />
+    <Compile Include="Server\WebSockets\HeaderTest.cs" />
+    <Compile Include="Server\WebSockets\RPCServerTest.cs" />
+    <Compile Include="Server\WebSockets\RPCStreamTest.cs" />
+    <Compile Include="Server\WebSockets\StreamServerTest.cs" />
+    <Compile Include="Server\WebSockets\StreamStreamTest.cs" />
     <Compile Include="Service\ClassMethodHandlerTest.cs" />
     <Compile Include="Service\DocumentationUtilsTest.cs" />
+    <Compile Include="Service\GameSceneTest.cs" />
     <Compile Include="Service\ITestService.cs" />
-    <Compile Include="Service\KRPCTest.cs" />
+    <Compile Include="Service\KRPC\ExpressionTest.cs" />
+    <Compile Include="Service\KRPC\KRPCTest.cs" />
     <Compile Include="Service\MessageAssert.cs" />
     <Compile Include="Service\ObjectStoreTest.cs" />
     <Compile Include="Service\ProcedureHandlerTest.cs" />
@@ -106,11 +118,16 @@
     <Compile Include="Service\TestService3.cs" />
     <Compile Include="Service\TestTopLevelClass.cs" />
     <Compile Include="Service\TypeUtilsTest.cs" />
+    <Compile Include="Service\ValueUtilsTest.cs" />
     <Compile Include="TestingTools.cs" />
     <Compile Include="Utils\DocumentationExtensionsTest.cs" />
+    <Compile Include="Utils\DynamicBufferTest.cs" />
     <Compile Include="Utils\EquatableTest.cs" />
     <Compile Include="Utils\ReflectionTest.cs" />
     <Compile Include="Utils\RoundRobinSchedulerTest.cs" />
     <Compile Include="Utils\TupleTest.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Service\KRPC\" />
   </ItemGroup>
 </Project>

@@ -5,7 +5,6 @@ using KRPC.SpaceCenter.ExtensionMethods;
 using KRPC.Utils;
 using UnityEngine;
 using Tuple3 = KRPC.Utils.Tuple<double, double, double>;
-using Tuple4 = KRPC.Utils.Tuple<double, double, double, double>;
 
 namespace KRPC.SpaceCenter.Services.Parts
 {
@@ -15,7 +14,8 @@ namespace KRPC.SpaceCenter.Services.Parts
     /// </summary>
     /// <remarks>
     /// Engines can consist of multiple thrusters.
-    /// For example, the S3 KS-25x4 "Mammoth" has four rocket nozzels, and so consists of four thrusters.
+    /// For example, the S3 KS-25x4 "Mammoth" has four rocket nozzels, and so consists of
+    /// four thrusters.
     /// </remarks>
     [KRPCClass (Service = "SpaceCenter")]
     [SuppressMessage ("Gendarme.Rules.Maintainability", "AvoidLackOfCohesionOfMethodsRule")]
@@ -70,12 +70,14 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// The position at which the thruster generates thrust, in the given reference frame.
         /// For gimballed engines, this takes into account the current rotation of the gimbal.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The position as a vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// position vector is in.</param>
         [KRPCMethod]
         public Tuple3 ThrustPosition (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.PositionFromWorldSpace (WorldTransform.position).ToTuple ();
         }
 
@@ -84,12 +86,14 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// This is opposite to the direction in which the thruster expels propellant.
         /// For gimballed engines, this takes into account the current rotation of the gimbal.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The direction as a unit vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// direction is in.</param>
         [KRPCMethod]
         public Tuple3 ThrustDirection (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.DirectionFromWorldSpace (WorldThrustDirection).ToTuple ();
         }
 
@@ -97,7 +101,9 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// The position at which the thruster generates thrust, when the engine is in its
         /// initial position (no gimballing), in the given reference frame.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The position as a vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// position vector is in.</param>
         /// <remarks>
         /// This position can move when the gimbal rotates. This is because the thrust position and
         /// gimbal position are not necessarily the same.
@@ -106,7 +112,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         public Tuple3 InitialThrustPosition (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             StashGimbalRotation ();
             var position = WorldTransform.position;
             RestoreGimbalRotation ();
@@ -118,12 +124,14 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// initial position (no gimballing), in the given reference frame.
         /// This is opposite to the direction in which the thruster expels propellant.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The direction as a unit vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// direction is in.</param>
         [KRPCMethod]
         public Tuple3 InitialThrustDirection (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             StashGimbalRotation ();
             var direction = WorldThrustDirection;
             RestoreGimbalRotation ();
@@ -136,14 +144,15 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// For gimballed engines, this takes into account the current rotation of the gimbal.
         /// <list type="bullet">
         /// <item><description>
-        /// The origin is at the position of thrust for this thruster (<see cref="ThrustPosition"/>).
-        /// </description></item>
+        /// The origin is at the position of thrust for this thruster
+        /// (<see cref="ThrustPosition"/>).</description></item>
         /// <item><description>
         /// The axes rotate with the thrust direction.
         /// This is the direction in which the thruster expels propellant, including any gimballing.
         /// </description></item>
         /// <item><description>The y-axis points along the thrust direction.</description></item>
-        /// <item><description>The x-axis and z-axis are perpendicular to the thrust direction.</description></item>
+        /// <item><description>The x-axis and z-axis are perpendicular to the thrust direction.
+        /// </description></item>
         /// </list>
         /// </summary>
         [KRPCProperty]
@@ -168,17 +177,20 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// <summary>
         /// Position around which the gimbal pivots.
         /// </summary>
+        /// <returns>The position as a vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// position vector is in.</param>
         [KRPCMethod]
         public Tuple3 GimbalPosition (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             CheckGimballed ();
             return referenceFrame.PositionFromWorldSpace (gimbal.gimbalTransforms [transformIndex].position).ToTuple ();
         }
 
         /// <summary>
-        /// The current gimbal angle in the pitch, roll and yaw axes.
+        /// The current gimbal angle in the pitch, roll and yaw axes, in degrees.
         /// </summary>
         [KRPCProperty]
         public Tuple3 GimbalAngle {
@@ -189,14 +201,14 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// Transform of the thrust vector in world space
+        /// Transform of the thrust vector in world space.
         /// </summary>
         internal Transform WorldTransform {
             get { return (engine != null ? engine.thrustTransforms : rcs.thrusterTransforms) [transformIndex]; }
         }
 
         /// <summary>
-        /// The direction of the thrust vector in world space
+        /// The direction of the thrust vector in world space.
         /// </summary>
         internal Vector3d WorldThrustDirection {
             get {
@@ -206,7 +218,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// A direction perpendicular to <see cref="WorldThrustDirection"/>
+        /// A direction perpendicular to <see cref="WorldThrustDirection"/>.
         /// </summary>
         internal Vector3d WorldThrustPerpendicularDirection {
             get { return WorldTransform.right; }
@@ -215,7 +227,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         Quaternion savedRotation;
 
         /// <summary>
-        /// Save the gimbal rotation and set it to its initial position
+        /// Save the gimbal rotation and set it to its initial position.
         /// </summary>
         void StashGimbalRotation ()
         {
@@ -224,7 +236,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// Restore the previously saved gimbal rotation
+        /// Restore the previously saved gimbal rotation.
         /// </summary>
         void RestoreGimbalRotation ()
         {

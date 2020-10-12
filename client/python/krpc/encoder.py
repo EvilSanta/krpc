@@ -1,33 +1,51 @@
-from google.protobuf.internal import encoder as protobuf_encoder  # pylint: disable=import-error,no-name-in-module
-from krpc.types import Types, ValueType, MessageType, ClassType, EnumType
-from krpc.types import ListType, DictionaryType, SetType, TupleType
+# pylint: disable=import-error,no-name-in-module
+import google.protobuf
+from google.protobuf.internal import encoder as protobuf_encoder
+# pylint: disable=import-error,no-name-in-module
+from google.protobuf.internal import wire_format as protobuf_wire_format
+from krpc.error import EncodingError
 from krpc.platform import bytelength
+import krpc.schema.KRPC_pb2 as KRPC
+from krpc.types import \
+    Types, ValueType, ClassType, EnumerationType, MessageType, TupleType, \
+    ListType, SetType, DictionaryType
+
+
+# The following unpacks the internal protobuf decoders, whose signature
+# depends on the version of protobuf installed
+# pylint: disable=invalid-name
+_pb_VarintEncoder = protobuf_encoder._VarintEncoder()
+_pb_SignedVarintEncoder = protobuf_encoder._SignedVarintEncoder()
+_pb_DoubleEncoder = protobuf_encoder.DoubleEncoder(1, False, False)
+_pb_FloatEncoder = protobuf_encoder.FloatEncoder(1, False, False)
+_pb_version = google.protobuf.__version__.split('.')
+if int(_pb_version[0]) >= 3 and int(_pb_version[1]) >= 4:
+    # protobuf v3.4.0 and above
+    def _VarintEncoder(write, value):
+        return _pb_VarintEncoder(write, value, True)
+
+    def _SignedVarintEncoder(write, value):
+        return _pb_SignedVarintEncoder(write, value, True)
+
+    def _DoubleEncoder(write, value):
+        return _pb_DoubleEncoder(write, value, True)
+
+    def _FloatEncoder(write, value):
+        return _pb_FloatEncoder(write, value, True)
+else:
+    # protobuf v3.3.0 and below
+    _VarintEncoder = _pb_VarintEncoder
+    _SignedVarintEncoder = _pb_SignedVarintEncoder
+    _DoubleEncoder = _pb_DoubleEncoder
+    _FloatEncoder = _pb_FloatEncoder
+# pylint: enable=invalid-name
 
 
 class Encoder(object):
-    """ Routines for encoding messages and values in the protocol buffer serialization format """
-
-    RPC_HELLO_MESSAGE = b'\x48\x45\x4C\x4C\x4F\x2D\x52\x50\x43\x00\x00\x00'
-    STREAM_HELLO_MESSAGE = b'\x48\x45\x4C\x4C\x4F\x2D\x53\x54\x52\x45\x41\x4D'
+    """ Routines for encoding messages and values in
+        the protocol buffer serialization format """
 
     _types = Types()
-
-    @classmethod
-    def client_name(cls, name=None):
-        """ A client name, truncated/lengthened to fit 32 bytes """
-        if name is None:
-            name = ''
-        else:
-            name = cls._unicode_truncate(name, 32, 'utf-8')
-        name = name.encode('utf-8')
-        return name + (b'\x00' * (32 - len(name)))
-
-    @classmethod
-    def _unicode_truncate(cls, string, length, encoding='utf-8'):
-        """ Shorten a unicode string so that it's encoding uses at
-            most length bytes. """
-        encoded = string.encode(encoding=encoding)[:length]
-        return encoded.decode(encoding, 'ignore')
 
     @classmethod
     def encode(cls, x, typ):
@@ -36,55 +54,76 @@ class Encoder(object):
             return x.SerializeToString()
         elif isinstance(typ, ValueType):
             return cls._encode_value(x, typ)
-        elif isinstance(typ, EnumType):
-            return cls._encode_value(x.value, cls._types.as_type('int32'))
+        elif isinstance(typ, EnumerationType):
+            return cls._encode_value(x.value, cls._types.sint32_type)
         elif isinstance(typ, ClassType):
             object_id = x._object_id if x is not None else 0
-            return cls._encode_value(object_id, cls._types.as_type('uint64'))
+            return cls._encode_value(object_id, cls._types.uint64_type)
         elif isinstance(typ, ListType):
-            msg = cls._types.as_type('KRPC.List').python_type()
+            msg = KRPC.List()
             msg.items.extend(cls.encode(item, typ.value_type) for item in x)
             return msg.SerializeToString()
         elif isinstance(typ, DictionaryType):
-            msg = cls._types.as_type('KRPC.Dictionary').python_type()
-            entry_type = cls._types.as_type('KRPC.DictionaryEntry')
+            msg = KRPC.Dictionary()
             entries = []
             for key, value in sorted(x.items(), key=lambda i: i[0]):
-                entry = entry_type.python_type()
+                entry = KRPC.DictionaryEntry()
                 entry.key = cls.encode(key, typ.key_type)
                 entry.value = cls.encode(value, typ.value_type)
                 entries.append(entry)
             msg.entries.extend(entries)
             return msg.SerializeToString()
         elif isinstance(typ, SetType):
-            msg = cls._types.as_type('KRPC.Set').python_type()
+            msg = KRPC.Set()
             msg.items.extend(cls.encode(item, typ.value_type) for item in x)
             return msg.SerializeToString()
         elif isinstance(typ, TupleType):
-            msg = cls._types.as_type('KRPC.Tuple').python_type()
+            msg = KRPC.Tuple()
             if len(x) != len(typ.value_types):
-                raise ValueError('Tuple has wrong number of elements. ' +
-                                 'Expected %d, got %d.' % (len(typ.value_types), len(x)))
-            msg.items.extend(cls.encode(item, value_type) for item, value_type in zip(x, typ.value_types))
+                raise EncodingError(
+                    'Tuple has wrong number of elements. ' +
+                    'Expected %d, got %d.' % (len(typ.value_types), len(x)))
+            msg.items.extend(cls.encode(item, value_type)
+                             for item, value_type in zip(x, typ.value_types))
             return msg.SerializeToString()
         else:
-            raise RuntimeError('Cannot encode objects of type ' + str(type(x)))
+            raise EncodingError(
+                'Cannot encode objects of type ' + str(type(x)))
 
     @classmethod
-    def encode_delimited(cls, x, typ):
-        """ Encode a message or value with size information
-            (for use in a delimited communication stream) """
-        data = cls.encode(x, typ)
-        delimiter = protobuf_encoder._VarintBytes(len(data))
-        return delimiter + data
+    def encode_message_with_size(cls, message):
+        """ Encode a protobuf message, prepended with its size """
+        data = message.SerializeToString()
+        size = protobuf_encoder._VarintBytes(len(data))
+        return size + data
 
     @classmethod
     def _encode_value(cls, value, typ):
-        return getattr(_ValueEncoder, 'encode_' + typ.protobuf_type)(value)
+        if typ.protobuf_type.code == KRPC.Type.SINT32:
+            return _ValueEncoder.encode_sint32(value)
+        elif typ.protobuf_type.code == KRPC.Type.SINT64:
+            return _ValueEncoder.encode_sint64(value)
+        elif typ.protobuf_type.code == KRPC.Type.UINT32:
+            return _ValueEncoder.encode_uint32(value)
+        elif typ.protobuf_type.code == KRPC.Type.UINT64:
+            return _ValueEncoder.encode_uint64(value)
+        elif typ.protobuf_type.code == KRPC.Type.DOUBLE:
+            return _ValueEncoder.encode_double(value)
+        elif typ.protobuf_type.code == KRPC.Type.FLOAT:
+            return _ValueEncoder.encode_float(value)
+        elif typ.protobuf_type.code == KRPC.Type.BOOL:
+            return _ValueEncoder.encode_bool(value)
+        elif typ.protobuf_type.code == KRPC.Type.STRING:
+            return _ValueEncoder.encode_string(value)
+        elif typ.protobuf_type.code == KRPC.Type.BYTES:
+            return _ValueEncoder.encode_bytes(value)
+        else:
+            raise EncodingError('Invalid type')
 
 
 class _ValueEncoder(object):
-    """ Routines for encoding values in the protocol buffer serialization format """
+    """ Routines for encoding values in the
+        protocol buffer serialization format """
 
     @classmethod
     def encode_double(cls, value):
@@ -93,8 +132,7 @@ class _ValueEncoder(object):
         def write(x):
             data.append(x)
 
-        encoder = protobuf_encoder.DoubleEncoder(1, False, False)
-        encoder(write, value)
+        _DoubleEncoder(write, value)
         return b''.join(data[1:])  # strips the tag value
 
     @classmethod
@@ -104,8 +142,7 @@ class _ValueEncoder(object):
         def write(x):
             data.append(x)
 
-        encoder = protobuf_encoder.FloatEncoder(1, False, False)
-        encoder(write, value)
+        _FloatEncoder(write, value)
         return b''.join(data[1:])  # strips the tag value
 
     @classmethod
@@ -115,37 +152,34 @@ class _ValueEncoder(object):
         def write(x):
             data.append(x)
 
-        protobuf_encoder._VarintEncoder()(write, value)
+        _VarintEncoder(write, value)
         return b''.join(data)
 
     @classmethod
     def _encode_signed_varint(cls, value):
+        value = protobuf_wire_format.ZigZagEncode(value)
         data = []
-
-        def write(x):
-            data.append(x)
-
-        protobuf_encoder._SignedVarintEncoder()(write, value)
+        _SignedVarintEncoder(data.append, value)
         return b''.join(data)
 
     @classmethod
-    def encode_int32(cls, value):
+    def encode_sint32(cls, value):
         return cls._encode_signed_varint(value)
 
     @classmethod
-    def encode_int64(cls, value):
+    def encode_sint64(cls, value):
         return cls._encode_signed_varint(value)
 
     @classmethod
     def encode_uint32(cls, value):
         if value < 0:
-            raise ValueError('Value must be non-negative, got %d' % value)
+            raise EncodingError('Value must be non-negative, got %d' % value)
         return cls._encode_varint(value)
 
     @classmethod
     def encode_uint64(cls, value):
         if value < 0:
-            raise ValueError('Value must be non-negative, got %d' % value)
+            raise EncodingError('Value must be non-negative, got %d' % value)
         return cls._encode_varint(value)
 
     @classmethod

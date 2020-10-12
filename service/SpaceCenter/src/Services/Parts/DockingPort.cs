@@ -6,6 +6,7 @@ using KRPC.Continuations;
 using KRPC.Service.Attributes;
 using KRPC.SpaceCenter.ExtensionMethods;
 using KRPC.Utils;
+using UnityEngine;
 using Tuple3 = KRPC.Utils.Tuple<double, double, double>;
 using Tuple4 = KRPC.Utils.Tuple<double, double, double, double>;
 
@@ -21,9 +22,6 @@ namespace KRPC.SpaceCenter.Services.Parts
         readonly ModuleDockingNode port;
         readonly ModuleAnimateGeneric shield;
 
-        readonly PartModule portNameModule;
-        readonly BaseField portNameField;
-
         internal static bool Is (Part part)
         {
             return part.InternalPart.HasModule<ModuleDockingNode> ();
@@ -35,13 +33,6 @@ namespace KRPC.SpaceCenter.Services.Parts
             var internalPart = part.InternalPart;
             port = internalPart.Module<ModuleDockingNode> ();
             shield = internalPart.Module<ModuleAnimateGeneric> ();
-            foreach (PartModule module in internalPart.Modules) {
-                if (module.moduleName == "ModuleDockingNodeNamed") {
-                    portNameModule = module;
-                    portNameField = module.Fields.Cast<BaseField> ().FirstOrDefault (x => x.guiName == "Port Name");
-                    break;
-                }
-            }
             if (port == null)
                 throw new ArgumentException ("Part is not a docking port");
         }
@@ -55,9 +46,7 @@ namespace KRPC.SpaceCenter.Services.Parts
             !ReferenceEquals (other, null) &&
             Part == other.Part &&
             port.Equals (other.port) &&
-            (shield == other.shield || shield.Equals (other.shield)) &&
-            (portNameModule == other.portNameModule || portNameModule.Equals (other.portNameModule)) &&
-            (portNameField == other.portNameField || portNameField.Equals (other.portNameField));
+            (shield == other.shield || shield.Equals (other.shield));
         }
 
         /// <summary>
@@ -68,10 +57,6 @@ namespace KRPC.SpaceCenter.Services.Parts
             int hash = Part.GetHashCode () ^ port.GetHashCode ();
             if (shield != null)
                 hash ^= shield.GetHashCode ();
-            if (portNameModule != null)
-                hash ^= portNameModule.GetHashCode ();
-            if (portNameField != null)
-                hash ^= portNameField.GetHashCode ();
             return hash;
         }
 
@@ -87,23 +72,6 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         [KRPCProperty]
         public Part Part { get; private set; }
-
-        /// <summary>
-        /// The port name of the docking port. This is the name of the port that can be set
-        /// in the right click menu, when the
-        /// <a href="http://forum.kerbalspaceprogram.com/index.php?/topic/40423-11-docking-port-alignment-indicator-version-621-beta-updated-04122016/">Docking Port Alignment Indicator</a>
-        /// mod is installed. If this mod is not installed, returns the title of the part
-        /// (<see cref="Part.Title"/>).
-        /// </summary>
-        [KRPCProperty]
-        public string Name {
-            get { return portNameField == null ? Part.Title : portNameField.GetValue (portNameModule).ToString (); }
-            set {
-                if (portNameField == null)
-                    throw new InvalidOperationException ("Docking port does not have a 'Port Name' field");
-                portNameField.SetValue (Convert.ChangeType (value, portNameField.FieldInfo.FieldType), portNameModule);
-            }
-        }
 
         /// <summary>
         /// The current state of the docking port.
@@ -126,11 +94,10 @@ namespace KRPC.SpaceCenter.Services.Parts
                         return DockingPortState.Docked;
                     // Otherwise, this docking port is actually "Docking"
                     return DockingPortState.Docking;
-                } else {
-                    // This docking port is not "Docked", but check if it is connected to another docking port
-                    // If it is, this docking port is "Docking"
-                    return dockedPort != null ? DockingPortState.Docking : state;
                 }
+                // This docking port is not "Docked", but check if it is connected to another docking port
+                // If it is, this docking port is "Docking"
+                return dockedPort != null ? DockingPortState.Docking : state;
             }
         }
 
@@ -138,7 +105,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// The part that this docking port is docked to. Returns <c>null</c> if this
         /// docking port is not docked to anything.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         [SuppressMessage ("Gendarme.Rules.Smells", "AvoidCodeDuplicatedInSameClassRule")]
         public Part DockedPart {
             get {
@@ -153,7 +120,9 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// Throws an exception if the docking port is not docked to anything.
         /// </summary>
         /// <remarks>
-        /// After undocking, the active vessel may change. See <see cref="SpaceCenter.ActiveVessel"/>.
+        /// When called, the active vessel may change. It is therefore possible that,
+        /// after calling this function, the object(s) returned by previous call(s) to
+        /// <see cref="SpaceCenter.ActiveVessel"/> no longer refer to the active vessel.
         /// </remarks>
         [KRPCMethod]
         public Vessel Undock ()
@@ -178,7 +147,7 @@ namespace KRPC.SpaceCenter.Services.Parts
 
         Vessel PostUndock (IList<Guid> preVesselIds, int wait = 0)
         {
-            //FIXME: sometimes after undocking, KSP changes it's mind as to what the active vessel is, so we wait for 10 frames before getting the active vessel
+            // FIXME: sometimes after undocking, KSP changes it's mind as to what the active vessel is, so we wait for 10 frames before getting the active vessel
             // Wait while the port is docked
             if (wait < 10 || State == DockingPortState.Docked)
                 throw new YieldException (new ParameterizedContinuation<Vessel, IList<Guid>, int> (PostUndock, preVesselIds, wait + 1));
@@ -233,47 +202,60 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The position of the docking port in the given reference frame.
+        /// The position of the docking port, in the given reference frame.
         /// </summary>
+        /// <returns>The position as a vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// position vector is in.</param>
         [KRPCMethod]
         public Tuple3 Position (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.PositionFromWorldSpace (port.nodeTransform.position).ToTuple ();
         }
 
         /// <summary>
         /// The direction that docking port points in, in the given reference frame.
         /// </summary>
+        /// <returns>The direction as a unit vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// direction is in.</param>
         [KRPCMethod]
         public Tuple3 Direction (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.DirectionFromWorldSpace (port.nodeTransform.forward).ToTuple ();
         }
 
         /// <summary>
         /// The rotation of the docking port, in the given reference frame.
         /// </summary>
+        /// <returns>The rotation as a quaternion of the form <math>(x, y, z, w)</math>.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// rotation is in.</param>
         [KRPCMethod]
         public Tuple4 Rotation (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
-            return referenceFrame.RotationToWorldSpace (port.nodeTransform.rotation).ToTuple ();
+                throw new ArgumentNullException (nameof (referenceFrame));
+            return referenceFrame.RotationFromWorldSpace (port.nodeTransform.rotation * Quaternion.Euler (90, 0, 0)).ToTuple ();
         }
 
         /// <summary>
         /// The reference frame that is fixed relative to this docking port, and
         /// oriented with the port.
         /// <list type="bullet">
-        /// <item><description>The origin is at the position of the docking port.</description></item>
+        /// <item><description>The origin is at the position of the docking port.
+        /// </description></item>
         /// <item><description>The axes rotate with the docking port.</description></item>
-        /// <item><description>The x-axis points out to the right side of the docking port.</description></item>
-        /// <item><description>The y-axis points in the direction the docking port is facing.</description></item>
-        /// <item><description>The z-axis points out of the bottom off the docking port.</description></item>
+        /// <item><description>The x-axis points out to the right side of the docking port.
+        /// </description></item>
+        /// <item><description>The y-axis points in the direction the docking port is facing.
+        /// </description></item>
+        /// <item><description>The z-axis points out of the bottom off the docking port.
+        /// </description></item>
         /// </list>
         /// </summary>
         /// <remarks>
@@ -302,10 +284,9 @@ namespace KRPC.SpaceCenter.Services.Parts
                     if (parent != null && PointsTowards (parent))
                         return parent;
                     throw new InvalidOperationException ("Docking port is 'PreAttached' but is not docked to any parts");
-                } else {
-                    // Find the port that is "Docked" to this port, if any
-                    return part.vessel [port.dockedPartUId];
                 }
+                // Find the port that is "Docked" to this port, if any
+                return part.vessel [port.dockedPartUId];
             }
         }
 
@@ -318,33 +299,32 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// Gets the state of a docking port. Does not consider the state of an attached docking port.
+        /// Gets the state of a docking port. Does not consider the state of
+        /// an attached docking port.
         /// </summary>
         static DockingPortState IndividualState (ModuleDockingNode node)
         {
             var state = node.state;
             if (state == "Ready")
                 return DockingPortState.Ready;
-            else if (state.StartsWith ("Docked") || state == "PreAttached")
+            if (state.StartsWith ("Docked", StringComparison.CurrentCulture) || state == "PreAttached")
                 return DockingPortState.Docked;
-            else if (state.Contains ("Acquire"))
+            if (state.Contains ("Acquire"))
                 return DockingPortState.Docking;
-            else if (state == "Disengage")
+            if (state == "Disengage")
                 return DockingPortState.Undocking;
-            else if (state == "Disabled") {
+            if (state == "Disabled") {
                 var shieldModule = node.part.Module<ModuleAnimateGeneric> ();
                 if (shieldModule == null)
                     throw new InvalidOperationException ("Docking port state is '" + node.state + "', but it does not have a shield!");
-                if (shieldModule.status.StartsWith ("Moving"))
-                    return DockingPortState.Moving;
-                else
-                    return DockingPortState.Shielded;
-            } else
-                throw new ArgumentException ("Unknown docking port state '" + node.state + "'");
+                return shieldModule.status.StartsWith ("Moving", StringComparison.CurrentCulture) ? DockingPortState.Moving : DockingPortState.Shielded;
+            }
+            throw new ArgumentException ("Unknown docking port state '" + node.state + "'");
         }
 
         /// <summary>
-        /// Try invoking a named event for a docking port. Returns true if an event is found and invoked.
+        /// Try invoking a named event for a docking port. Returns true if an event is found
+        /// and invoked.
         /// </summary>
         // TODO: move to PartModule extension methods
         static bool InvokeEvent (PartModule module, string eventName)
@@ -355,9 +335,8 @@ namespace KRPC.SpaceCenter.Services.Parts
             if (e != null) {
                 e.Invoke ();
                 return true;
-            } else {
-                return false;
             }
+            return false;
         }
     }
 }

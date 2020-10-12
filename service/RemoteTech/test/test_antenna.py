@@ -1,18 +1,22 @@
 import unittest
 import krpctest
 
+
+@unittest.skipIf(not krpctest.TestCase.connect().remote_tech.available,
+                 "RemoteTech not installed")
 class TestAntenna(krpctest.TestCase):
 
     @classmethod
     def setUpClass(cls):
         cls.new_save()
-        cls.launch_vessel_from_vab('RemoteTech', directory='./')
+        cls.launch_vessel_from_vab('RemoteTech')
         cls.remove_other_vessels()
         cls.space_center = cls.connect().space_center
         cls.rt = cls.connect().remote_tech
         cls.vessel = cls.space_center.active_vessel
         cls.other_vessel = next(iter(cls.vessel.parts.decouplers)).decouple()
-        cls.antenna = cls.rt.antenna(next(iter(cls.vessel.parts.with_title('Reflectron KR-7'))))
+        cls.antenna = cls.rt.antenna(
+            next(iter(cls.vessel.parts.with_title('Reflectron KR-7'))))
 
     def test_antenna(self):
         self.assertEqual('Reflectron KR-7', self.antenna.part.title)
@@ -54,6 +58,7 @@ class TestAntenna(krpctest.TestCase):
         self.assertEqual('RemoteTech Ship', self.antenna.target_vessel.name)
         self.wait()
         self.antenna.target = self.rt.Target.none
+
 
 if __name__ == '__main__':
     unittest.main()

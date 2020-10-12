@@ -34,7 +34,7 @@
 {% endmacro %}
 
 {% macro procedure(x) %}{{ mark_documented(x) }}
-.. staticmethod:: {{ x.name | snakecase }}({{ parameters(x.parameters) }})
+.. staticmethod:: {{ domain.method_name(x.name) }}({{ parameters(x.parameters) }})
 
 {{ gendoc(x.documentation) | indent }}
 
@@ -47,6 +47,9 @@
 {% if x.return_type != None %}
    :rtype: {{ domain.type_description(x.return_type) }}
 {% endif %}
+{% if x.game_scenes != None %}
+   {{ game_scenes(x.game_scenes) }}
+{% endif %}
 
 {% if hasdoc(x.documentation, './remarks') %}{{ remarks(x.documentation) | indent }}
 
@@ -56,7 +59,7 @@
 {% endmacro %}
 
 {% macro property(x) %}{{ mark_documented(x) }}
-.. attribute:: {{ x.name | snakecase }}
+.. attribute:: {{ domain.method_name(x.name) }}
 
 {{ gendoc(x.documentation) | indent }}
 
@@ -65,6 +68,9 @@
 {% if hasdoc(x.documentation, './returns') %}{{ returns(x.documentation) | indent }}
 {% endif %}
    :rtype: {{ domain.type_description(x.type) }}
+{% if x.game_scenes != None %}
+   {{ game_scenes(x.game_scenes) }}
+{% endif %}
 
 {% if hasdoc(x.documentation, './remarks') %}{{ remarks(x.documentation) | indent }}
 
@@ -74,7 +80,7 @@
 {% endmacro %}
 
 {% macro class_method(x) %}{{ mark_documented(x) }}
-.. method:: {{ x.name | snakecase }}({{ parameters(x.parameters[1:]) }})
+.. method:: {{ domain.method_name(x.name) }}({{ parameters(x.parameters[1:]) }})
 
 {{ gendoc(x.documentation) | indent }}
 
@@ -87,6 +93,9 @@
 {% if x.return_type != None %}
    :rtype: {{ domain.type_description(x.return_type) }}
 {% endif %}
+{% if x.game_scenes != None %}
+   {{ game_scenes(x.game_scenes) }}
+{% endif %}
 
 {% if hasdoc(x.documentation, './remarks') %}{{ remarks(x.documentation) | indent }}
 
@@ -96,7 +105,7 @@
 {% endmacro %}
 
 {% macro class_static_method(x) %}{{ mark_documented(x) }}
-.. staticmethod:: {{ x.name | snakecase }}({{ parameters(x.parameters) }})
+.. staticmethod:: {{ domain.method_name(x.name) }}({{ parameters(x.parameters) }})
 
 {{ gendoc(x.documentation) | indent }}
 
@@ -108,6 +117,9 @@
 {% endif %}
 {% if x.return_type != None %}
    :rtype: {{ domain.type_description(x.return_type) }}
+{% endif %}
+{% if x.game_scenes != None %}
+   {{ game_scenes(x.game_scenes) }}
 {% endif %}
 
 {% if hasdoc(x.documentation, './remarks') %}{{ remarks(x.documentation) | indent }}
@@ -132,8 +144,16 @@
 
 {{ gendoc(value.documentation) | indent(width=6) }}
 
-{% if hasdoc(x.documentation, './remarks') %}{{ remarks(x.documentation) | indent(width=6) }}{% endif %}
+{% if hasdoc(value.documentation, './remarks') %}{{ remarks(value.documentation) | indent(width=6) }}{% endif %}
 {% endfor %}
+{% endmacro %}
+
+{% macro exception(x) %}{{ mark_documented(x) }}
+.. class:: {{ x.name }}
+
+{{ gendoc(x.documentation) | indent }}
+
+{% if hasdoc(x.documentation, './remarks') %}{{ remarks(x.documentation) | indent }}{% endif %}
 {% endmacro %}
 
 {% macro parameters(x) %}
@@ -144,7 +164,7 @@
 {% if not x.has_default_value -%}
 {{ x.name | snakecase }}
 {%- else -%}
-[{{ x.name | snakecase }} = {{ x.default_value }}]
+[{{ x.name | snakecase }} = {{ domain.default_value(x.default_value, x.type) }}]
 {%- endif %}
 {% endmacro %}
 
@@ -156,4 +176,8 @@
 .. note::
 
 {{ gendoc(x, './remarks') | indent }}
+{% endmacro %}
+
+{% macro game_scenes(x) %}
+:Game Scenes: {{ x }}
 {% endmacro %}

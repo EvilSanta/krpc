@@ -3,11 +3,11 @@ using KRPC.Service.Messages;
 
 namespace KRPC.Server.Message
 {
-    abstract class StreamClient : IClient<NoMessage,StreamMessage>
+    abstract class StreamClient : IClient<NoMessage,StreamUpdate>
     {
         readonly IClient<byte,byte> client;
 
-        protected StreamClient (Guid guid, IClient<byte,byte> innerClient, IStream<NoMessage,StreamMessage> stream)
+        protected StreamClient (Guid guid, IClient<byte,byte> innerClient, IStream<NoMessage,StreamUpdate> stream)
         {
             Guid = guid;
             client = innerClient;
@@ -24,7 +24,7 @@ namespace KRPC.Server.Message
             get { return client.Address; }
         }
 
-        public IStream<NoMessage,StreamMessage> Stream { get; private set; }
+        public IStream<NoMessage,StreamUpdate> Stream { get; private set; }
 
         public bool Connected {
             get { return client.Connected; }
@@ -35,14 +35,14 @@ namespace KRPC.Server.Message
             client.Close ();
         }
 
-        public override bool Equals (Object obj)
+        public override bool Equals (object obj)
         {
             return obj != null && Equals (obj as StreamClient);
         }
 
-        public bool Equals (IClient<NoMessage,StreamMessage> other)
+        public bool Equals (IClient<NoMessage,StreamUpdate> other)
         {
-            if ((object)other == null)
+            if (other == null)
                 return false;
             var otherClient = other as StreamClient;
             if ((object)otherClient == null)
@@ -57,7 +57,7 @@ namespace KRPC.Server.Message
 
         public static bool operator == (StreamClient lhs, StreamClient rhs)
         {
-            if (Object.ReferenceEquals (lhs, rhs))
+            if (ReferenceEquals (lhs, rhs))
                 return true;
             if ((object)lhs == null || (object)rhs == null)
                 return false;

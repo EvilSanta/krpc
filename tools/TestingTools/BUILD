@@ -1,5 +1,5 @@
-load('/tools/build/csharp', 'csharp_library', 'csharp_assembly_info', 'csharp_gendarme_test')
-load('/config', 'assembly_version', 'author')
+load('//tools/build:csharp.bzl', 'csharp_library', 'csharp_assembly_info', 'csharp_gendarme_test')
+load('//:config.bzl', 'assembly_version', 'author')
 
 srcs = glob(['**/*.cs']) + [':AssemblyInfo']
 deps = [
@@ -9,13 +9,12 @@ deps = [
     '//tools/build/ksp:Assembly-CSharp',
     '//tools/build/ksp:Assembly-CSharp-firstpass',
     '//tools/build/ksp:UnityEngine',
+    '//tools/build/ksp:UnityEngine.CoreModule',
     '//tools/build/ksp:UnityEngine.UI',
-    '//tools/build/ksp:KSPUtil',
     '//tools/build/ksp:mscorlib',
     '//tools/build/ksp:System',
     '//tools/build/ksp:System.Core',
-    '//tools/build/ksp:System.Xml',
-    '//tools/build/ksp:System.Xml.Linq'
+    '//tools/build/ksp:System.Xml'
 ]
 
 csharp_library(

@@ -6,19 +6,19 @@ using KRPC.Utils;
 namespace KRPC.RemoteTech
 {
     /// <summary>
-    /// A RemoteTech antenna. Obtained by calling <see cref="Comms.Antennas"/> or  <see cref="RemoteTech.Antenna"/>.
+    /// A RemoteTech antenna. Obtained by calling <see cref="Comms.Antennas"/> or <see cref="RemoteTech.Antenna"/>.
     /// </summary>
     [KRPCClass (Service = "RemoteTech")]
     public class Antenna : Equatable<Antenna>
     {
-        readonly KRPC.SpaceCenter.Services.Parts.Part part;
+        readonly SpaceCenter.Services.Parts.Part part;
 
-        internal static Boolean Is (KRPC.SpaceCenter.Services.Parts.Part innerPart)
+        internal static bool Is (SpaceCenter.Services.Parts.Part innerPart)
         {
             return innerPart.InternalPart.Modules.Contains ("ModuleRTAntenna");
         }
 
-        internal Antenna (KRPC.SpaceCenter.Services.Parts.Part innerPart)
+        internal Antenna (SpaceCenter.Services.Parts.Part innerPart)
         {
             part = innerPart;
             if (!Is (part))
@@ -45,7 +45,7 @@ namespace KRPC.RemoteTech
         /// Get the part containing this antenna.
         /// </summary>
         [KRPCProperty]
-        public KRPC.SpaceCenter.Services.Parts.Part Part {
+        public SpaceCenter.Services.Parts.Part Part {
             get { return part; }
         }
 
@@ -69,14 +69,13 @@ namespace KRPC.RemoteTech
                 var target = API.GetAntennaTarget (part.InternalPart);
                 if (target == API.GetNoTargetGuid ())
                     return Target.None;
-                else if (target == API.GetActiveVesselGuid ())
+                if (target == API.GetActiveVesselGuid ())
                     return Target.ActiveVessel;
-                else if (RemoteTech.GroundStationIds.ContainsKey (target))
+                if (RemoteTech.GroundStationIds.ContainsKey (target))
                     return Target.GroundStation;
-                else if (FlightGlobals.Vessels.Any (x => x.id == target))
+                if (FlightGlobals.Vessels.Any (x => x.id == target))
                     return Target.Vessel;
-                else
-                    return Target.CelestialBody;
+                return Target.CelestialBody;
             }
             set {
                 if (value == Target.ActiveVessel)

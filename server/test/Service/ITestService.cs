@@ -1,22 +1,21 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using KRPC.Service.Messages;
 
 namespace KRPC.Test.Service
 {
     public interface ITestService
     {
+        void ProcedureWithoutAttribute ();
+
         void ProcedureNoArgsNoReturn ();
 
-        void ProcedureSingleArgNoReturn (Response data);
+        void ProcedureSingleArgNoReturn (string x);
 
-        void ProcedureThreeArgsNoReturn (Response x, Request y, Response z);
+        void ProcedureThreeArgsNoReturn (string x, int y, string z);
 
-        Response ProcedureNoArgsReturns ();
+        string ProcedureNoArgsReturns ();
 
-        Response ProcedureSingleArgReturns (Response data);
-
-        int ProcedureWithValueTypes (float x, string y, byte[] z);
+        string ProcedureSingleArgReturns (string x);
 
         string PropertyWithGetAndSet { get; set; }
 
@@ -30,6 +29,8 @@ namespace KRPC.Test.Service
         void DeleteTestObject (TestService.TestClass obj);
 
         TestService.TestClass EchoTestObject (TestService.TestClass obj);
+
+        TestService.TestClass ReturnNullWhenNotAllowed ();
 
         void ProcedureSingleOptionalArgNoReturn (string x);
 
@@ -51,11 +52,27 @@ namespace KRPC.Test.Service
 
         HashSet<int> EchoSet (HashSet<int> h);
 
-        KRPC.Utils.Tuple<int,bool> EchoTuple (KRPC.Utils.Tuple<int,bool> t);
+        global::KRPC.Utils.Tuple<int,bool> EchoTuple (global::KRPC.Utils.Tuple<int,bool> t);
 
         [SuppressMessage ("Gendarme.Rules.Design.Generic", "DoNotExposeNestedGenericSignaturesRule")]
         IDictionary<int,IList<string>> EchoNestedCollection (IDictionary<int,IList<string>> c);
 
         IList<TestService.TestClass> EchoListOfObjects (IList<TestService.TestClass> l);
+
+        global::KRPC.Utils.Tuple<int,bool> TupleDefault (global::KRPC.Utils.Tuple<int,bool> x);
+
+        IList<int> ListDefault (IList<int> x);
+
+        HashSet<int> SetDefault (HashSet<int> x);
+
+        IDictionary<int,bool> DictionaryDefault (IDictionary<int,bool> x);
+
+        void ProcedureAvailableInInheritedGameScene();
+
+        void ProcedureAvailableInSpecifiedGameScene();
+
+        string PropertyAvailableInInheritedGameScene { get; }
+
+        string PropertyAvailableInSpecifiedGameScene { get; }
     }
 }

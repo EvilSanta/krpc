@@ -8,9 +8,9 @@ namespace KRPC.RemoteTech
 {
     /// <summary>
     /// This service provides functionality to interact with
-    /// <a href="http://forum.kerbalspaceprogram.com/index.php?/topic/75245-11-remotetech-v1610-2016-04-12/">RemoteTech</a>.
+    /// <a href="https://forum.kerbalspaceprogram.com/index.php?/topic/139167-13-remotetech-v188-2017-09-03/">RemoteTech</a>.
     /// </summary>
-    [KRPCService (GameScene = GameScene.All)]
+    [KRPCService (Id = 6, GameScene = GameScene.All)]
     public static class RemoteTech
     {
         static void CheckAPI ()
@@ -20,10 +20,18 @@ namespace KRPC.RemoteTech
         }
 
         /// <summary>
+        /// Whether RemoteTech is installed.
+        /// </summary>
+        [KRPCProperty]
+        public static bool Available {
+            get { return API.IsAvailable; }
+        }
+
+        /// <summary>
         /// Get a communications object, representing the communication capability of a particular vessel.
         /// </summary>
         [KRPCProcedure]
-        public static Comms Comms (KRPC.SpaceCenter.Services.Vessel vessel)
+        public static Comms Comms (SpaceCenter.Services.Vessel vessel)
         {
             CheckAPI ();
             return new Comms (vessel);
@@ -33,7 +41,7 @@ namespace KRPC.RemoteTech
         /// Get the antenna object for a particular part.
         /// </summary>
         [KRPCProcedure]
-        public static Antenna Antenna (KRPC.SpaceCenter.Services.Parts.Part part)
+        public static Antenna Antenna (SpaceCenter.Services.Parts.Part part)
         {
             CheckAPI ();
             return new Antenna (part);

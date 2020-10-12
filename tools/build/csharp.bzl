@@ -5,11 +5,11 @@ def _ref_impl(ctx):
     input = ctx.file.file
     output = ctx.outputs.lib
 
-    ctx.action(
+    ctx.actions.run_shell(
         mnemonic = 'CSharpReference',
         inputs = [input],
         outputs = [output],
-        command = 'ln -f -s "`pwd`/%s" "`pwd`/%s"' % (input.path, output.path)
+        command = 'cp "%s" "%s"' % (input.path, output.path)
     )
 
     return struct(
@@ -46,14 +46,17 @@ def _lib_impl(ctx):
     outputs = [lib_output, doc_output, mdb_output]
     srcs = ctx.files.srcs
     deps = [dep.lib for dep in ctx.attr.deps]
+    if ctx.attr.nunit_test:
+        deps += ctx.files._nunit_exe_libs + ctx.files._nunit_framework
     inputs = srcs + deps
+
 
     cmd = ctx.attr.csc
     args = _csc_args(
         srcs, deps, lib=lib_output, doc=doc_output, optimize=ctx.attr.optimize,
         warn=ctx.attr.warn, nowarn=ctx.attr.nowarn, warnaserror=ctx.attr.warnaserror, define=ctx.attr.define)
 
-    ctx.action(
+    ctx.actions.run_shell(
         mnemonic = 'CSharpCompile',
         inputs = inputs,
         outputs = outputs,
@@ -83,7 +86,7 @@ def _bin_impl(ctx):
         srcs, deps, exe=bin_output, doc=doc_output, optimize=ctx.attr.optimize,
         warn=ctx.attr.warn, nowarn=ctx.attr.nowarn, warnaserror=ctx.attr.warnaserror, define=ctx.attr.define)
 
-    ctx.action(
+    ctx.actions.run_shell(
         mnemonic = 'CSharpCompile',
         inputs = inputs,
         outputs = outputs,
@@ -92,11 +95,13 @@ def _bin_impl(ctx):
 
     runfiles = outputs + ctx.files.deps
     runfile_dir = '$0.runfiles/krpc'
-    sub_commands = ['mkdir -p %s' % runfile_dir]
+    tmp_dir = '$$.run'
+    sub_commands = ['mkdir -p %s/%s' % (runfile_dir, tmp_dir)]
     for dep in runfiles:
-        sub_commands.append('ln -f -s %s %s/%s' % (dep.short_path, runfile_dir, dep.basename))
-    sub_commands.append('/usr/bin/mono %s/%s "$@" %s' % (runfile_dir, bin_output.basename, ' '.join(ctx.attr.runargs)))
-    ctx.file_action(
+        sub_commands.append('ln -f -s ../%s %s/%s/%s' % (dep.short_path, runfile_dir, tmp_dir, dep.basename))
+    sub_commands.append('/usr/bin/mono %s/%s/%s "$@" %s' % (runfile_dir, tmp_dir, bin_output.basename, ' '.join(ctx.attr.runargs)))
+    sub_commands.append('rm -rf %s/%s' % (runfile_dir, tmp_dir))
+    ctx.actions.write(
         ctx.outputs.executable,
         ' && \\\n'.join(sub_commands)+'\n'
     )
@@ -113,52 +118,27 @@ def _bin_impl(ctx):
     )
 
 def _nunit_impl(ctx):
-    lib_output = ctx.outputs.lib
-    doc_output = ctx.outputs.doc
-    mdb_output = ctx.outputs.mdb
-    outputs = [lib_output, doc_output, mdb_output]
-    srcs = ctx.files.srcs
-    deps = ctx.files._nunit_exe_libs + ctx.files._nunit_framework
-    deps += [dep.lib for dep in ctx.attr.deps]
-    inputs = srcs + deps
+    lib = ctx.attr.lib.lib
     nunit_files = [ctx.file._nunit_exe] + ctx.files._nunit_exe_libs + ctx.files._nunit_framework
-
-    cmd = ctx.attr.csc
-    args = _csc_args(
-        srcs, deps, lib=lib_output, doc=doc_output, optimize=ctx.attr.optimize,
-        warn=ctx.attr.warn, nowarn=ctx.attr.nowarn, warnaserror=ctx.attr.warnaserror, define=ctx.attr.define)
-
-    ctx.action(
-        mnemonic = 'CSharpCompile',
-        inputs = inputs,
-        outputs = outputs,
-        command = '%s %s' % (cmd, ' '.join(args))
-    )
-
-    runfiles = nunit_files + outputs + ctx.files.deps
+    runfiles = nunit_files + [lib] + ctx.files.deps
     sub_commands = []
     for dep in runfiles:
         sub_commands.append('ln -f -s %s %s' % (dep.short_path, dep.basename))
     sub_commands.extend([
-        '/usr/bin/mono --debug %s %s "$@" 2>stderr.txt' % (ctx.file._nunit_exe.basename, lib_output.basename),
+        '/usr/bin/mono --debug %s %s "$@" 2>stderr.txt' % (ctx.file._nunit_exe.basename, lib.basename),
         'RESULT=$?',
         'cat stderr.txt',
         '(if grep "FATAL UNHANDLED EXCEPTION" stderr.txt; then exit 1; fi)',
         'exit $RESULT'
     ])
-    ctx.file_action(
+    ctx.actions.write(
         ctx.outputs.executable,
-        ' && \\\n'.join(sub_commands)+'\n'
+        ' ; \\\n'.join(sub_commands)+'\n'
     )
-    runfiles = ctx.runfiles(files = runfiles)
 
     return struct(
         name = ctx.label.name,
-        lib = lib_output,
-        doc = doc_output,
-        mdb = mdb_output,
-        out = outputs,
-        runfiles = runfiles
+        runfiles = ctx.runfiles(files = runfiles)
     )
 
 def _gendarme_impl(ctx):
@@ -179,7 +159,7 @@ def _gendarme_impl(ctx):
         args.append('--ignore=%s' % ctx.file.ignores.short_path)
     args.append(src.short_path)
 
-    ctx.file_action(
+    ctx.actions.write(
         ctx.outputs.executable,
         'MONO_OPTIONS="--debug" /usr/bin/gendarme %s\n' % ' '.join(args)
     )
@@ -218,7 +198,7 @@ def _assembly_info_impl(ctx):
         com_visible = 'false'
     content.append('[assembly: ComVisible (%s)]' % com_visible)
 
-    ctx.file_action(
+    ctx.actions.write(
         output = ctx.outputs.out,
         content = '\n'.join(content)+'\n'
     )
@@ -226,7 +206,7 @@ def _assembly_info_impl(ctx):
 _COMMON_ATTRS = {
     'csc': attr.string(default=_MCS),
     'deps': attr.label_list(providers=['out', 'lib', 'target_type']),
-    'srcs': attr.label_list(allow_files=FileType(['.cs'])),
+    'srcs': attr.label_list(allow_files=['.cs']),
     'optimize': attr.bool(default=True),
     'warn': attr.int(default=4),
     'nowarn': attr.string_list(),
@@ -237,33 +217,47 @@ _COMMON_ATTRS = {
 csharp_reference = rule(
     implementation = _ref_impl,
     attrs = {
-        'file': attr.label(mandatory=True, allow_files=True, single_file=True),
+        'file': attr.label(mandatory=True, allow_single_file=True),
         '_target_type': attr.string(default='ref')
     },
     outputs = {'lib': '%{name}.dll'}
 )
 
+csharp_library_attrs = {}
+csharp_library_attrs.update(_COMMON_ATTRS)
+csharp_library_attrs.update({
+    '_target_type': attr.string(default='lib'),
+    'nunit_test': attr.bool(default=False),
+    '_nunit_exe_libs': attr.label(default=Label('@csharp_nunit//:nunit_exe_libs'), allow_files=True),
+    '_nunit_framework': attr.label(default=Label('@csharp_nunit//:nunit_framework'), allow_files=True)
+})
+
 csharp_library = rule(
     implementation = _lib_impl,
-    attrs = _COMMON_ATTRS + {'_target_type': attr.string(default='lib')},
+    attrs = csharp_library_attrs,
     outputs = {'lib': '%{name}.dll', 'doc': '%{name}.xml', 'mdb': '%{name}.dll.mdb'}
 )
 
+csharp_binary_attrs = {}
+csharp_binary_attrs.update(_COMMON_ATTRS)
+csharp_binary_attrs.update({'runargs': attr.string_list(), '_target_type': attr.string(default='bin')})
+
 csharp_binary = rule(
     implementation = _bin_impl,
-    attrs = _COMMON_ATTRS + {'runargs': attr.string_list(), '_target_type': attr.string(default='bin')},
+    attrs = csharp_binary_attrs,
     outputs = {'bin': '%{name}.exe', 'doc': '%{name}.xml', 'mdb': '%{name}.exe.mdb'},
     executable = True
 )
 
 csharp_nunit_test = rule(
     implementation = _nunit_impl,
-    attrs = _COMMON_ATTRS + {
-        '_nunit_exe': attr.label(default=Label('@csharp_nunit//:nunit_exe'), allow_files=True, single_file=True),
+    attrs = {
+        'lib': attr.label(mandatory=True, providers=['out', 'lib', 'target_type']),
+        'deps': attr.label_list(providers=['out', 'lib', 'target_type']),
+        '_nunit_exe': attr.label(default=Label('@csharp_nunit//:nunit_exe'), allow_single_file=True),
         '_nunit_exe_libs': attr.label(default=Label('@csharp_nunit//:nunit_exe_libs'), allow_files=True),
         '_nunit_framework': attr.label(default=Label('@csharp_nunit//:nunit_framework'), allow_files=True)
     },
-    outputs = {'lib': '%{name}.dll', 'doc': '%{name}.xml', 'mdb': '%{name}.dll.mdb'},
     test = True
 )
 
@@ -273,16 +267,16 @@ csharp_gendarme_test = rule(
         'lib': attr.label(allow_files=True),
         'exe': attr.label(allow_files=True),
         'config': attr.label(default=Label('//tools/build:csharp_gendarme_rules.xml'),
-                             allow_files=True, single_file=True),
+                             allow_single_file=True),
         'ruleset': attr.string(default='default'),
-        'ignores': attr.label(allow_files=True, single_file=True)
+        'ignores': attr.label(allow_single_file=True)
     },
     test = True
 )
 
 csharp_assembly_info = rule(
     implementation = _assembly_info_impl,
-    attrs= {
+    attrs = {
         'title': attr.string(mandatory=True),
         'description': attr.string(),
         'copyright': attr.string(mandatory=True),
@@ -296,13 +290,17 @@ csharp_assembly_info = rule(
     outputs = {'out': '%{name}.cs'}
 )
 
-def _nuget_package_out(attr):
-    return {'out': '%s.%s.nupkg' % (attr.id, attr.version)}
+def _nuget_package_out(id, version):
+    return {'out': '%s.%s.nupkg' % (id, version)}
 
 def _nuget_package_impl(ctx):
-    assembly = ctx.attr.assembly.lib
-    doc = ctx.attr.assembly.doc
-    nuspec = ctx.new_file(assembly, assembly.basename.replace('.dll','.nuspec'))
+    nuspec = ctx.actions.declare_file(
+        ctx.attr.assembly.lib.basename.replace('.dll','.nuspec'), sibling=ctx.attr.assembly.lib)
+    assemblies = {
+        'net45': ctx.attr.assembly
+    }
+    if ctx.attr.assembly_net35 != None:
+        assemblies['net35'] = ctx.attr.assembly_net35
 
     nuspec_contents = [
         '<?xml version="1.0"?>',
@@ -320,7 +318,7 @@ def _nuget_package_impl(ctx):
     nuspec_contents.extend([
         '  <frameworkAssemblies>'
     ])
-    nuspec_contents.extend(['    <frameworkAssembly assemblyName="%s" targetFramework="net40"/>' % x for x in ctx.attr.framework_deps])
+    nuspec_contents.extend(['    <frameworkAssembly assemblyName="%s" targetFramework="net45"/>' % x for x in ctx.attr.framework_deps])
     nuspec_contents.extend([
         '  </frameworkAssemblies>',
         '  <dependencies>'
@@ -329,33 +327,50 @@ def _nuget_package_impl(ctx):
     nuspec_contents.extend([
         '  </dependencies>',
         '</metadata>',
-        '<files>',
-        '  <file src="%s" target="lib/net40" />' % assembly.basename,
-        '  <file src="%s" target="lib/net40" />' % doc.basename,
+        '<files>'
+    ])
+    for framework, assembly in assemblies.items():
+        nuspec_contents.extend([
+            '  <file src="%s" target="lib/%s/%s.dll" />'
+            % (assembly.lib.basename, framework, ctx.attr.id),
+            '  <file src="%s" target="lib/%s/%s.xml" />'
+            % (assembly.doc.basename, framework, ctx.attr.id)
+        ])
+    nuspec_contents.extend([
         '</files>',
         '</package>'
     ])
 
-    ctx.file_action(
+    ctx.actions.write(
         output = nuspec,
         content = '\n'.join(nuspec_contents)
     )
 
-    tmpdir = '%s.nuget-package-tmp' % assembly.basename
+    tmpdir = '%s.nuget-package-tmp' % ctx.attr.assembly.lib.basename
     sub_commands = [
         'mkdir -p %s' % tmpdir,
         'cp %s %s' % (nuspec.path, tmpdir),
-        'cp %s %s' % (assembly.path, tmpdir),
-        'cp %s %s' % (doc.path, tmpdir),
+    ]
+    for _, assembly in assemblies.items():
+        sub_commands.extend([
+            'cp %s %s' % (assembly.lib.path, tmpdir),
+            'cp %s %s' % (assembly.doc.path, tmpdir)
+        ])
+    sub_commands.extend([
         'mono %s pack %s -BasePath %s -Verbosity quiet' % (ctx.file._nuget_exe.path, tmpdir+'/'+nuspec.basename, tmpdir),
         'cp %s %s' % (ctx.outputs.out.basename, ctx.outputs.out.path)
-    ]
+    ])
 
-    ctx.action(
+    inputs = [ctx.file._nuget_exe, nuspec]
+    for _, assembly in assemblies.items():
+        inputs.extend([assembly.lib, assembly.doc])
+
+    ctx.actions.run_shell(
         mnemonic = 'NuGetPackage',
-        inputs = [ctx.file._nuget_exe, assembly, doc, nuspec],
+        inputs = inputs,
         outputs = [ctx.outputs.out],
-        command = ' && '.join(sub_commands)
+        command = ' && '.join(sub_commands),
+        execution_requirements = {'local': '1'} # FIXME: nuget.exe does not work with the sandbox
     )
 
 nuget_package = rule(
@@ -363,6 +378,7 @@ nuget_package = rule(
     attrs = {
         'id': attr.string(mandatory=True),
         'assembly': attr.label(providers=['out', 'lib', 'doc', 'target_type']),
+        'assembly_net35': attr.label(providers=['out', 'lib', 'doc', 'target_type']),
         'version': attr.string(mandatory=True),
         'author': attr.string(mandatory=True),
         'project_url': attr.string(),
@@ -370,7 +386,7 @@ nuget_package = rule(
         'description': attr.string(mandatory=True),
         'framework_deps': attr.string_list(),
         'deps': attr.string_dict(),
-        '_nuget_exe': attr.label(default=Label('@csharp_nuget//file'), allow_files=True, single_file=True)
+        '_nuget_exe': attr.label(default=Label('@csharp_nuget//file'), allow_single_file=True)
     },
     outputs = _nuget_package_out
 )

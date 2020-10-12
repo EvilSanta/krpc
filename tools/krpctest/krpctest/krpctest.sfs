@@ -1,18 +1,23 @@
 GAME
 {
-  version = 1.1.2
+  version = 1.7.3
   Title = krpctest (SANDBOX)
   Description = No description available.
   linkURL =
   linkCaption =
   Mode = SANDBOX
   Status = 1
+  Seed = 357724557
   scene = 7
   editor = None
   flag = Squad/Flags/default
   launchID = 2
+  defaultVABLaunchSite = LaunchPad
+  defaultSPHLaunchSite = Runway
   modded = True
-  envInfo =  - Environment Info - Win32NT 7FFFFFFFFFFFFFFF  Args: KSP_x64.exe  -
+  envInfo =  - Environment Info - Unix 7FFFFFFFFFFFFFFF  Args: KSP.x86_64  -
+  versionFull = 1.7.3.2594 (LinuxPlayer)
+  versionCreated = 1.7.3.2594 (LinuxPlayer)
   PARAMETERS
   {
     preset = Normal
@@ -33,7 +38,7 @@ GAME
       CanLeaveToEditor = True
       CanLeaveToTrackingStation = True
       CanLeaveToSpaceCenter = True
-      CanLeaveToMainMenu = False
+      CanLeaveToMainMenu = True
     }
     EDITOR
     {
@@ -69,17 +74,20 @@ GAME
     }
     DIFFICULTY
     {
-      AutoHireCrews = True
+      AutoHireCrews = False
       MissingCrewsRespawn = True
+      RespawnTimer = 7200
       BypassEntryPurchaseAfterResearch = True
       AllowStockVessels = True
       IndestructibleFacilities = False
       ResourceAbundance = 1
       ReentryHeatScale = 1
+      EnableCommNet = True
+      AllowOtherLaunchSites = True
     }
     CAREER
     {
-      TechTreeUrl = GameData/Squad/Resources/TechTree.cfg
+      TechTreeUrl = GameData/ModuleManager.TechTree
       StartingFunds = 25000
       StartingScience = 0
       StartingReputation = 0
@@ -90,14 +98,105 @@ GAME
       RepLossMultiplier = 1
       RepLossDeclined = 1
     }
+    CommNetParams
+    {
+      requireSignalForControl = False
+      plasmaBlackout = False
+      rangeModifier = 1
+      DSNModifier = 1
+      occlusionMultiplierVac = 0.9
+      occlusionMultiplierAtm = 0.75
+      enableGroundStations = True
+    }
+    AdvancedParams
+    {
+      EnableKerbalExperience = False
+      ImmediateLevelUp = False
+      AllowNegativeCurrency = False
+      PressurePartLimits = False
+      GPartLimits = False
+      GKerbalLimits = False
+      KerbalGToleranceMult = 1
+      ResourceTransferObeyCrossfeed = False
+      ActionGroupsAlways = False
+      BuildingImpactDamageMult = 0.05
+      PartUpgradesInSandbox = False
+      PartUpgradesInCareer = True
+      PartUpgradesInMission = False
+      EnableFullSASInSandbox = False
+    }
+    MissionParamsGeneral
+    {
+      enableFunding = False
+      startingFunds = 100000
+      spacer =
+      enableKerbalLevels = False
+      kerbalLevelPilot = 4
+      kerbalLevelScientist = 4
+      kerbalLevelEngineer = 4
+      spacer2 =
+      preventVesselRecovery = False
+    }
+    MissionParamsExtras
+    {
+      facilityOpenAC = False
+      astronautHiresAreFree = True
+      spacer =
+      facilityOpenEditor = False
+      launchSitesOpen = True
+      spacer2 =
+      cheatsEnabled = False
+    }
+    MissionParamsFacilities
+    {
+      facilityLevelAdmin = 3
+      facilityLevelAC = 3
+      facilityLevelLaunchpad = 3
+      facilityLevelMC = 3
+      facilityLevelRD = 3
+      facilityLevelRunway = 3
+      facilityLevelSPH = 3
+      facilityLevelTS = 3
+      facilityLevelVAB = 3
+    }
+  }
+  SCENARIO
+  {
+    name = ROCScenario
+    scene = 7
+  }
+  SCENARIO
+  {
+    name = DeployedScience
+    scene = 7, 8, 5, 6
+  }
+  SCENARIO
+  {
+    name = CommNetScenario
+    scene = 7, 8, 5, 6
+  }
+  SCENARIO
+  {
+    name = PartUpgradeManager
+    scene = 6, 5, 7
+    UPGRADES
+    {
+      Unlocks
+      {
+      }
+      Enableds
+      {
+      }
+    }
   }
   SCENARIO
   {
     name = ResourceScenario
-    scene = 7, 8, 5, 6
+    scene = 7, 8, 5, 6, 21
     RESOURCE_SETTINGS
     {
-      GameSeed = 170837793
+      GameSeed = 168042976
+      ROCMissionSeed = 168042976
       MaxDeltaTime = 21600
     }
   }
@@ -115,21 +214,6 @@ GAME
     scene = 7, 8, 5
     Progress
     {
-      RecordsAltitude
-      {
-        reached = 5.01999999999998
-        record = 72.8015176919289
-      }
-      RecordsSpeed
-      {
-        reached = 4.59999999999999
-        record = 0.00811500877923393
-      }
-      RecordsDistance
-      {
-        reached = 4.61999999999999
-        record = 756.389963302959
-      }
     }
   }
   SCENARIO
@@ -144,149 +228,14 @@ GAME
   }
   SCENARIO
   {
+    name = ScenarioCustomWaypoints
+    scene = 7, 8, 21
+  }
+  SCENARIO
+  {
     name = ScenarioDestructibles
     scene = 5, 7, 6, 8
-    SpaceCenter/Administration/Facility/mainBuilding
-    {
-      intact = True
-    }
-    SpaceCenter/AstronautComplex/Facility/building
-    {
-      intact = True
-    }
-    SpaceCenter/LaunchPad/Facility/LaunchPadMedium/KSCFlagPoleLaunchPad
-    {
-      intact = True
-    }
-    SpaceCenter/LaunchPad/Facility/LaunchPadMedium/ksp_pad_waterTower
-    {
-      intact = True
-    }
-    SpaceCenter/LaunchPad/Facility/LaunchPadMedium/ksp_pad_sphereTank
-    {
-      intact = True
-    }
-    SpaceCenter/LaunchPad/Facility/LaunchPadMedium/ksp_pad_launchPad
-    {
-      intact = True
-    }
-    SpaceCenter/LaunchPad/Facility/LaunchPadMedium/ksp_pad_cylTank
-    {
-      intact = True
-    }
-    SpaceCenter/MissionControl/Facility/building
-    {
-      intact = True
-    }
-    SpaceCenter/ResearchAndDevelopment/Facility/SideLab
-    {
-      intact = True
-    }
-    SpaceCenter/ResearchAndDevelopment/Facility/Observatory
-    {
-      intact = True
-    }
-    SpaceCenter/ResearchAndDevelopment/Facility/WindTunnel
-    {
-      intact = True
-    }
-    SpaceCenter/ResearchAndDevelopment/Facility/CornerLab
-    {
-      intact = True
-    }
-    SpaceCenter/ResearchAndDevelopment/Facility/MainBuilding
-    {
-      intact = True
-    }
-    SpaceCenter/ResearchAndDevelopment/Facility/CentralBuilding
-    {
-      intact = True
-    }
-    SpaceCenter/ResearchAndDevelopment/Facility/SmallLab
-    {
-      intact = True
-    }
-    SpaceCenter/ResearchAndDevelopment/Facility/ksp_pad_cylTank
-    {
-      intact = True
-    }
-    SpaceCenter/Runway/Facility/Section4
-    {
-      intact = True
-    }
-    SpaceCenter/Runway/Facility/Section3
-    {
-      intact = True
-    }
-    SpaceCenter/Runway/Facility/Section2
-    {
-      intact = True
-    }
-    SpaceCenter/Runway/Facility/Section1
-    {
-      intact = True
-    }
-    SpaceCenter/Runway/Facility/End27
-    {
-      intact = True
-    }
-    SpaceCenter/Runway/Facility/End09
-    {
-      intact = True
-    }
-    SpaceCenter/Runway/Facility/model_runway_new_v43/runway_light_SW
-    {
-      intact = True
-    }
-    SpaceCenter/Runway/Facility/model_runway_new_v43/runway_light_NW
-    {
-      intact = True
-    }
-    SpaceCenter/Runway/Facility/model_runway_new_v43/runway_light_NE
-    {
-      intact = True
-    }
-    SpaceCenter/Runway/Facility/model_runway_new_v43/runway_light_SE
-    {
-      intact = True
-    }
-    SpaceCenter/SpaceplaneHangar/Facility/mainBuilding
-    {
-      intact = True
-    }
-    SpaceCenter/SpaceplaneHangar/Facility/ksp_pad_waterTower
-    {
-      intact = True
-    }
-    SpaceCenter/SpaceplaneHangar/Facility/ksp_pad_cylTank
-    {
-      intact = True
-    }
-    SpaceCenter/SpaceplaneHangar/Facility/Tank
-    {
-      intact = True
-    }
-    SpaceCenter/TrackingStation/Facility/MainBuilding
-    {
-      intact = True
-    }
-    SpaceCenter/TrackingStation/Facility/dish_array/dish_east
-    {
-      intact = True
-    }
-    SpaceCenter/TrackingStation/Facility/dish_array/dish_north
-    {
-      intact = True
-    }
-    SpaceCenter/TrackingStation/Facility/dish_array/dish_south
-    {
-      intact = True
-    }
-    SpaceCenter/VehicleAssemblyBuilding/Facility/PodMemorial
-    {
-      intact = True
-    }
-    SpaceCenter/VehicleAssemblyBuilding/Facility/mainBuilding
+    SpaceCenter/VehicleAssemblyBuilding/Facility/ksp_pad_cylTank
     {
       intact = True
     }
@@ -294,7 +243,139 @@ GAME
     {
       intact = True
     }
-    SpaceCenter/VehicleAssemblyBuilding/Facility/ksp_pad_cylTank
+    SpaceCenter/VehicleAssemblyBuilding/Facility/mainBuilding
+    {
+      intact = True
+    }
+    SpaceCenter/VehicleAssemblyBuilding/Facility/PodMemorial
+    {
+      intact = True
+    }
+    SpaceCenter/TrackingStation/Facility/dish_array/dish_south
+    {
+      intact = True
+    }
+    SpaceCenter/TrackingStation/Facility/dish_array/dish_north
+    {
+      intact = True
+    }
+    SpaceCenter/TrackingStation/Facility/dish_array/dish_east
+    {
+      intact = True
+    }
+    SpaceCenter/TrackingStation/Facility/MainBuilding
+    {
+      intact = True
+    }
+    SpaceCenter/SpaceplaneHangar/Facility/Tank
+    {
+      intact = True
+    }
+    SpaceCenter/SpaceplaneHangar/Facility/ksp_pad_cylTank
+    {
+      intact = True
+    }
+    SpaceCenter/SpaceplaneHangar/Facility/ksp_pad_waterTower
+    {
+      intact = True
+    }
+    SpaceCenter/SpaceplaneHangar/Facility/mainBuilding
+    {
+      intact = True
+    }
+    SpaceCenter/Runway/Facility/model_runway_new_v43/runway_light_SE
+    {
+      intact = True
+    }
+    SpaceCenter/Runway/Facility/model_runway_new_v43/runway_light_NE
+    {
+      intact = True
+    }
+    SpaceCenter/Runway/Facility/model_runway_new_v43/runway_light_NW
+    {
+      intact = True
+    }
+    SpaceCenter/Runway/Facility/model_runway_new_v43/runway_light_SW
+    {
+      intact = True
+    }
+    SpaceCenter/Runway/Facility/End09
+    {
+      intact = True
+    }
+    SpaceCenter/Runway/Facility/End27
+    {
+      intact = True
+    }
+    SpaceCenter/Runway/Facility/Section1
+    {
+      intact = True
+    }
+    SpaceCenter/Runway/Facility/Section2
+    {
+      intact = True
+    }
+    SpaceCenter/Runway/Facility/Section3
+    {
+      intact = True
+    }
+    SpaceCenter/Runway/Facility/Section4
+    {
+      intact = True
+    }
+    SpaceCenter/ResearchAndDevelopment/Facility/ksp_pad_cylTank
+    {
+      intact = True
+    }
+    SpaceCenter/ResearchAndDevelopment/Facility/SmallLab
+    {
+      intact = True
+    }
+    SpaceCenter/ResearchAndDevelopment/Facility/CentralBuilding
+    {
+      intact = True
+    }
+    SpaceCenter/ResearchAndDevelopment/Facility/MainBuilding
+    {
+      intact = True
+    }
+    SpaceCenter/ResearchAndDevelopment/Facility/CornerLab
+    {
+      intact = True
+    }
+    SpaceCenter/ResearchAndDevelopment/Facility/WindTunnel
+    {
+      intact = True
+    }
+    SpaceCenter/ResearchAndDevelopment/Facility/Observatory
+    {
+      intact = True
+    }
+    SpaceCenter/ResearchAndDevelopment/Facility/SideLab
+    {
+      intact = True
+    }
+    SpaceCenter/MissionControl/Facility/building
+    {
+      intact = True
+    }
+    SpaceCenter/LaunchPad/Facility/LaunchPadMedium/ksp_pad_cylTank
+    {
+      intact = True
+    }
+    SpaceCenter/LaunchPad/Facility/LaunchPadMedium/ksp_pad_launchPad
+    {
+      intact = True
+    }
+    SpaceCenter/LaunchPad/Facility/LaunchPadMedium/ksp_pad_sphereTank
+    {
+      intact = True
+    }
+    SpaceCenter/LaunchPad/Facility/LaunchPadMedium/ksp_pad_waterTower
+    {
+      intact = True
+    }
+    SpaceCenter/LaunchPad/Facility/LaunchPadMedium/KSCFlagPoleLaunchPad
     {
       intact = True
     }
@@ -302,15 +383,11 @@ GAME
     {
       intact = True
     }
-    SpaceCenter/TrackingStation/Facility/OuterDish
+    SpaceCenter/AstronautComplex/Facility/building
     {
       intact = True
     }
-    SpaceCenter/TrackingStation/Facility/building
-    {
-      intact = True
-    }
-    SpaceCenter/LaunchPad/Facility/Flag
+    SpaceCenter/Administration/Facility/mainBuilding
     {
       intact = True
     }
@@ -328,45 +405,67 @@ GAME
       key = 1 1 1.5 1.5
     }
   }
+  SCENARIO
+  {
+    name = SentinelScenario
+    scene = 7, 8, 5
+    NextSpawnTime = 22510.629469800544
+  }
   FLIGHTSTATE
   {
-    version = 1.1.2
-    UT = 5.75999999999996
+    version = 1.7.3
+    UT = 14.439999999999781
     activeVessel = 1
-    mapViewFiltering = -1026
+    mapViewFiltering = -17410
+    commNetUIModeTracking = Network
+    commNetUIModeFlight = Path
     VESSEL
     {
-      pid = 75192ca5d7a94f77b0cbed0bc63a8f93
+      pid = 7230d000d8bd4136bcc442e2c3ebb04b
+      persistentId = 3771175620
       name = Ast. HSJ-227
       type = SpaceObject
       sit = ORBITING
       landed = False
+      skipGroundPositioning = False
+      vesselSpawning = True
+      launchedFrom =
       landedAt =
+      displaylandedAt =
       splashed = False
-      met = 0.04
-      lct = 0.04
+      met = 0.02
+      lct = 0.02
       lastUT = -1
+      distanceTraveled = 0
       root = 0
-      lat = -2.85806169651972
-      lon = 180.49836858611
-      alt = 14375430289.1085
+      lat = -2.8344097360859282
+      lon = -178.91795130471684
+      alt = 14595342288.498795
       hgt = -1
       nrm = 0,1,0
-      rot = -0.2984337,0.402898,-0.8173988,0.283672
+      rot = -0.298433661,0.402898014,-0.817398846,0.283672005
       CoM = 0,0,0
       stg = 0
       prst = False
       ref = 0
       ctrl = False
+      PQSMin = 0
+      PQSMax = 0
+      GroupOverride = 0
+      OverrideDefault = False,False,False,False
+      OverrideActionControl = 0,0,0,0
+      OverrideAxisControl = 0,0,0,0
+      OverrideGroupNames = ,,,
+      altDispState = DEFAULT
       ORBIT
       {
-        SMA = 14979605214.9773
-        ECC = 0.0935798411378794
-        INC = 2.89254227812912
-        LPE = 359.973730926465
-        LAN = 261.635400885574
-        MNA = 6.25690601843334
-        EPH = 2043585.77608398
+        SMA = 15241628997.376549
+        ECC = 0.10921682186859205
+        INC = 2.8721686647479379
+        LPE = 2.1143722077926079
+        LAN = 261.77362395667546
+        MNA = -0.055432860619541641
+        EPH = 2043585.7560839844
         REF = 0
       }
       PART
@@ -375,6 +474,7 @@ GAME
         cid = 0
         uid = 559298752
         mid = 559298752
+        persistentId = 3004274988
         launchID = 0
         parent = 0
         position = 0,0,0
@@ -382,20 +482,25 @@ GAME
         mirror = 1,1,1
         symMethod = Radial
         istg = 0
+        resPri = 0
         dstg = 0
         sqor = 0
         sepI = 0
         sidx = 0
         attm = 0
+        sameVesselCollision = False
         srfN = None, -1
         mass = 150
+        shielded = False
         temp = -1
         tempExt = 0
         tempExtUnexp = 0
-        expt = 0.1
+        staticPressureAtm = 0
+        expt = 1
         state = 0
-        connected = True
         attached = True
+        autostrutMode = Off
+        rigidAttachment = False
         flag =
         rTrf =
         modCost = 0
@@ -406,8 +511,8 @@ GAME
       DISCOVERY
       {
         state = 1
-        lastObservedTime = 0.04
-        lifetime = 586354.710388184
+        lastObservedTime = 0.02
+        lifetime = 586354.71038818359
         refTime = 1728000
         size = 4
       }
@@ -419,77 +524,103 @@ GAME
       }
       VESSELMODULES
       {
+        FlightIntegrator
+        {
+        }
+        AxisGroupsModule
+        {
+        }
       }
     }
     VESSEL
     {
-      pid = 83f9cb70b9e945178e0c9fb89a08e553
-      name = Untitled Space Craft
+      pid = 2471ca8df49940e5a75252c00711bdda
+      persistentId = 238635668
+      name = Basic
       type = Ship
       sit = PRELAUNCH
       landed = True
-      landedAt = KSC_LaunchPad_Platform
+      skipGroundPositioning = False
+      vesselSpawning = False
+      launchedFrom = LaunchPad
+      landedAt = LaunchPad
+      displaylandedAt = #autoLOC_300898
       splashed = False
       met = 0
-      lct = 5.75999999999996
-      lastUT = 5.75999999999996
+      lct = 14.439999999999781
+      lastUT = 14.439999999999781
+      distanceTraveled = 0
       root = 0
-      lat = -0.0972077823978978
-      lon = 285.442327757401
-      alt = 72.8015170567669
-      hgt = 0.3375299
-      nrm = 1.192093E-06,1,2.952293E-07
-      rot = -0.7009888,-0.09221651,-0.09726588,0.7004644
-      CoM = -8.27221E-09,-2.863106E-08,-1.061462E-10
-      stg = 1
+      lat = -0.097207794706583389
+      lon = -74.557675388408484
+      alt = 72.847554874955676
+      hgt = 0.405334592
+      nrm = 2.50339508E-06,1.00000024,1.78813934E-07
+      rot = -0.700990021,-0.0922249854,-0.0972567722,0.700463235
+      CoM = 0,0,0
+      stg = 0
       prst = False
-      ref = 2357052933
+      ref = 81606494
       ctrl = True
+      PQSMin = 2
+      PQSMax = 9
+      GroupOverride = 0
+      OverrideDefault = False,False,False,False
+      OverrideActionControl = 0,0,0,0
+      OverrideAxisControl = 0,0,0,0
+      OverrideGroupNames = ,,,
+      altDispState = ASL
       cPch = 0.2
       cHdg = 0.3
       cMod = 0
       ORBIT
       {
-        SMA = 300818.753121661
-        ECC = 0.994798513322088
-        INC = 0.0972077813024104
-        LPE = 89.9987355367265
-        LAN = 105.540150748873
-        MNA = 3.14159347788413
-        EPH = 5.75999999999996
+        SMA = 300818.7762272734
+        ECC = 0.99479851318027535
+        INC = 0.097207794766284619
+        LPE = 89.997922572067125
+        LAN = 105.68563350557969
+        MNA = -3.1415926335031643
+        EPH = 14.439999999999781
         REF = 1
       }
       PART
       {
-        name = mk1pod
-        cid = 4294608770
-        uid = 2357052933
-        mid = 1481734729
+        name = mk1pod.v2
+        cid = 4294657508
+        uid = 81606494
+        mid = 1100641283
+        persistentId = 1987941238
         launchID = 1
         parent = 0
         position = 0,0,0
         rotation = 0,0,0,1
         mirror = 1,1,1
         symMethod = Radial
-        istg = 0
+        istg = -1
+        resPri = 0
         dstg = 0
         sqor = -1
-        sepI = 0
+        sepI = -1
         sidx = -1
         attm = 0
+        sameVesselCollision = False
         srfN = , -1
         attN = bottom, -1
         attN = top, -1
-        mass = 0.8
-        temp = 312.469950553685
-        tempExt = 312.634517564476
-        tempExtUnexp = 312.635391922002
+        mass = 0.800000012
+        shielded = False
+        temp = 312.35166138139795
+        tempExt = 312.65249623029467
+        tempExtUnexp = 312.65240000483021
+        staticPressureAtm = 0.98925120148751688
         expt = 0.5
         state = 0
-        connected = True
         attached = True
+        autostrutMode = Off
+        rigidAttachment = False
         flag = Squad/Flags/default
-        rTrf = mk1pod
+        rTrf = _default
         modCost = 0
         crew = Jebediah Kerman
         EVENTS
@@ -505,48 +636,26 @@ GAME
         {
           name = ModuleCommand
           isEnabled = True
-          controlSrcStatusText = Operational
+          hibernation = False
+          hibernateOnWarp = False
+          activeControlPointName = _default
           stagingEnabled = True
           EVENTS
           {
-            MakeReference
-            {
-              active = True
-              guiActive = True
-              guiActiveUncommand = False
-              guiIcon = Control From Here
-              guiName = Control From Here
-              category = Control From Here
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
-            RenameVessel
-            {
-              active = True
-              guiActive = True
-              guiActiveUncommand = True
-              guiIcon = Rename Vessel
-              guiName = Rename Vessel
-              category = Rename Vessel
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
-            ToggleStaging
-            {
-              active = True
-              guiActive = False
-              guiActiveUncommand = False
-              guiIcon = Disable Staging
-              guiName = Disable Staging
-              category = Disable Staging
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
           }
           ACTIONS
+          {
+            MakeReferenceToggle
+            {
+              actionGroup = None
+            }
+            HibernateToggle
+            {
+              actionGroup = None
+              active = False
+            }
+          }
+          UPGRADESAPPLIED
           {
           }
         }
@@ -555,44 +664,19 @@ GAME
           name = ModuleReactionWheel
           isEnabled = True
           actuatorModeCycle = 0
+          authorityLimiter = 100
           stateString = Idle
           stagingEnabled = True
           WheelState = Active
-          actuatorModeCycle_UIFlight
-          {
-            controlEnabled = True
-            stateNames = Normal, SAS Only, Pilot Only
-          }
           EVENTS
           {
-            OnToggle
-            {
-              active = True
-              guiActive = True
-              guiActiveEditor = True
-              guiActiveUncommand = False
-              guiIcon = Toggle Torque
-              guiName = Toggle Torque
-              category = Toggle Torque
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
-            ToggleStaging
-            {
-              active = True
-              guiActive = False
-              guiActiveUncommand = False
-              guiIcon = Disable Staging
-              guiName = Disable Staging
-              category = Disable Staging
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
           }
           ACTIONS
           {
+            CycleAction
+            {
+              actionGroup = None
+            }
             Activate
             {
               actionGroup = None
@@ -606,6 +690,29 @@ GAME
               actionGroup = None
             }
           }
+          UPGRADESAPPLIED
+          {
+          }
+        }
+        MODULE
+        {
+          name = ModuleColorChanger
+          isEnabled = True
+          animState = False
+          stagingEnabled = True
+          EVENTS
+          {
+          }
+          ACTIONS
+          {
+            ToggleAction
+            {
+              actionGroup = Light
+            }
+          }
+          UPGRADESAPPLIED
+          {
+          }
         }
         MODULE
         {
@@ -617,102 +724,6 @@ GAME
           stagingEnabled = True
           EVENTS
           {
-            DeployExperiment
-            {
-              active = True
-              guiActive = True
-              guiActiveUncommand = False
-              guiIcon = Deploy
-              guiName = Crew Report
-              category = Deploy
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
-            CollectDataExternalEvent
-            {
-              active = False
-              guiActive = False
-              guiActiveUncommand = False
-              guiIcon =
-              guiName = Take Data
-              category =
-              guiActiveUnfocused = True
-              unfocusedRange = 1.5
-              externalToEVAOnly = True
-            }
-            ReviewDataEvent
-            {
-              active = False
-              guiActive = True
-              guiActiveUncommand = False
-              guiIcon = Review Data
-              guiName = Review Report
-              category = Review Data
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
-            ResetExperiment
-            {
-              active = False
-              guiActive = True
-              guiActiveUncommand = False
-              guiIcon = Reset
-              guiName = Discard Crew Report
-              category = Reset
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
-            DeployExperimentExternal
-            {
-              active = True
-              guiActive = False
-              guiActiveUncommand = False
-              guiIcon = Deploy
-              guiName = Crew Report
-              category = Deploy
-              guiActiveUnfocused = True
-              unfocusedRange = 1.5
-              externalToEVAOnly = True
-            }
-            ResetExperimentExternal
-            {
-              active = False
-              guiActive = False
-              guiActiveUncommand = False
-              guiIcon = Reset
-              guiName = Discard Crew Report
-              category = Reset
-              guiActiveUnfocused = True
-              unfocusedRange = 1.5
-              externalToEVAOnly = True
-            }
-            CleanUpExperimentExternal
-            {
-              active = False
-              guiActive = False
-              guiActiveUncommand = False
-              guiIcon = Restore
-              guiName = Restore
-              category = Restore
-              guiActiveUnfocused = True
-              unfocusedRange = 1.5
-              externalToEVAOnly = True
-            }
-            ToggleStaging
-            {
-              active = True
-              guiActive = False
-              guiActiveUncommand = False
-              guiIcon = Disable Staging
-              guiName = Experiment: Disable Staging
-              category = Disable Staging
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
           }
           ACTIONS
           {
@@ -725,6 +736,9 @@ GAME
               actionGroup = None
             }
           }
+          UPGRADESAPPLIED
+          {
+          }
         }
         MODULE
         {
@@ -733,56 +747,67 @@ GAME
           stagingEnabled = True
           EVENTS
           {
-            StoreDataExternalEvent
-            {
-              active = False
-              guiActive = False
-              guiActiveUncommand = False
-              guiIcon =
-              guiName = Store Experiments (0)
-              category =
-              guiActiveUnfocused = True
-              unfocusedRange = 1.3
-              externalToEVAOnly = True
-            }
-            CollectDataExternalEvent
-            {
-              active = False
-              guiActive = False
-              guiActiveUncommand = False
-              guiIcon =
-              guiName = Take Data (0)
-              category =
-              guiActiveUnfocused = True
-              unfocusedRange = 1.3
-              externalToEVAOnly = True
-            }
-            ReviewDataEvent
-            {
-              active = False
-              guiActive = True
-              guiActiveUncommand = False
-              guiIcon = Review Data
-              guiName = Review Stored Data (0)
-              category = Review Data
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
-            ToggleStaging
-            {
-              active = True
-              guiActive = False
-              guiActiveUncommand = False
-              guiIcon = Disable Staging
-              guiName = Disable Staging
-              category = Disable Staging
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
           }
           ACTIONS
+          {
+            CollectAllAction
+            {
+              actionGroup = None
+            }
+          }
+          UPGRADESAPPLIED
+          {
+          }
+        }
+        MODULE
+        {
+          name = ModuleConductionMultiplier
+          isEnabled = True
+          stagingEnabled = True
+          EVENTS
+          {
+          }
+          ACTIONS
+          {
+          }
+          UPGRADESAPPLIED
+          {
+          }
+        }
+        MODULE
+        {
+          name = ModuleDataTransmitter
+          isEnabled = True
+          xmitIncomplete = False
+          stagingEnabled = True
+          canComm = True
+          EVENTS
+          {
+          }
+          ACTIONS
+          {
+            StartTransmissionAction
+            {
+              actionGroup = None
+              active = False
+            }
+          }
+          UPGRADESAPPLIED
+          {
+          }
+        }
+        MODULE
+        {
+          name = ModuleLiftingSurface
+          isEnabled = True
+          stagingEnabled = True
+          EVENTS
+          {
+          }
+          ACTIONS
+          {
+          }
+          UPGRADESAPPLIED
           {
           }
         }
@@ -794,57 +819,43 @@ GAME
           stagingEnabled = True
           EVENTS
           {
-            ToggleFlag
-            {
-              active = True
-              guiActive = False
-              guiActiveEditor = True
-              guiActiveUncommand = False
-              guiIcon = Toggle Flag
-              guiName = Toggle Flag
-              category = Toggle Flag
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
-            ToggleStaging
-            {
-              active = True
-              guiActive = False
-              guiActiveUncommand = False
-              guiIcon = Disable Staging
-              guiName = Disable Staging
-              category = Disable Staging
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
           }
           ACTIONS
+          {
+          }
+          UPGRADESAPPLIED
           {
           }
         }
         MODULE
         {
-          name = ModuleConductionMultiplier
+          name = ModulePartVariants
           isEnabled = True
+          useVariantMass = True
           stagingEnabled = True
           EVENTS
           {
-            ToggleStaging
-            {
-              active = True
-              guiActive = False
-              guiActiveUncommand = False
-              guiIcon = Disable Staging
-              guiName = Disable Staging
-              category = Disable Staging
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
           }
           ACTIONS
+          {
+          }
+          UPGRADESAPPLIED
+          {
+          }
+        }
+        MODULE
+        {
+          name = KOSNameTag
+          isEnabled = True
+          nameTag =
+          stagingEnabled = True
+          EVENTS
+          {
+          }
+          ACTIONS
+          {
+          }
+          UPGRADESAPPLIED
           {
           }
         }
@@ -855,18 +866,6 @@ GAME
           stagingEnabled = True
           EVENTS
           {
-            ToggleStaging
-            {
-              active = True
-              guiActive = False
-              guiActiveUncommand = False
-              guiIcon = Disable Staging
-              guiName = Disable Staging
-              category = Disable Staging
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
           }
           ACTIONS
           {
@@ -875,40 +874,7 @@ GAME
           {
             flight = 0
           }
-        }
-        MODULE
-        {
-          name = TransferDialogSpawner
-          isEnabled = True
-          stagingEnabled = True
-          EVENTS
-          {
-            SpawnDialog
-            {
-              active = True
-              guiActive = True
-              guiActiveUncommand = True
-              guiIcon = Transfer Crew
-              guiName = Transfer Crew
-              category = Transfer Crew
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
-            ToggleStaging
-            {
-              active = True
-              guiActive = False
-              guiActiveUncommand = False
-              guiIcon = Disable Staging
-              guiName = Disable Staging
-              category = Disable Staging
-              guiActiveUnfocused = False
-              unfocusedRange = 2
-              externalToEVAOnly = True
-            }
-          }
-          ACTIONS
+          UPGRADESAPPLIED
           {
           }
         }
@@ -974,11 +940,19 @@ GAME
         trimPitch = 0
         trimYaw = 0
         trimRoll = 0
-        mainThrottle = 0.5
+        mainThrottle = 0
       }
       VESSELMODULES
       {
         FlightIntegrator
+        {
+        }
+        CommNetVessel
+        {
+          controlState = KerbalFull
+          canComm = True
+        }
+        AxisGroupsModule
         {
         }
       }
@@ -986,6 +960,23 @@ GAME
   }
   LoaderInfo
   {
+    ModuleManager v3.0.7.0 = True
+    Google.Protobuf v3.9.1.0 / v3.9.1 = True
+    KRPC.Drawing v0.4.8.0 = True
+    KRPC.IO.Ports v0.0.0.0 = True
+    KRPC.InfernalRobotics v0.4.8.0 = True
+    KRPC.KerbalAlarmClock v0.4.8.0 = True
+    KRPC.RemoteTech v0.4.8.0 = True
+    KRPC.SpaceCenter v0.4.8.0 = True
+    KRPC.UI v0.4.8.0 = True
+    KRPC v0.4.8.0 = True
+    TestingTools v0.4.8.0 = True
+    kRPC = True
+    ModuleManager.3.0.7.dll = True
+    ModuleManager.ConfigCache = True
+    ModuleManager.ConfigSHA = True
+    ModuleManager.Physics = True
+    ModuleManager.TechTree = True
   }
   ROSTER
   {
@@ -998,10 +989,23 @@ GAME
       brave = 0.5
       dumb = 0.5
       badS = True
+      veteran = True
       tour = False
       state = Assigned
+      inactive = False
+      inactiveTimeEnd = 0
+      gExperienced = 0
+      outDueToG = False
       ToD = 0
       idx = 0
+      extraXP = 0
+      hasHelmetOn = False
+      hasNeckRingOn = False
+      lightR = 1
+      lightG = 0.5176
+      lightB = 0
+      completedFirstEVA = False
+      hero = True
       CAREER_LOG
       {
         flight = 0
@@ -1018,12 +1022,25 @@ GAME
       type = Crew
       trait = Engineer
       brave = 0.5
-      dumb = 0.8
+      dumb = 0.800000012
       badS = False
+      veteran = True
       tour = False
       state = Available
+      inactive = False
+      inactiveTimeEnd = 0
+      gExperienced = 0
+      outDueToG = False
       ToD = 0
       idx = -1
+      extraXP = 0
+      hasHelmetOn = False
+      hasNeckRingOn = False
+      lightR = 1
+      lightG = 0.5176
+      lightB = 0
+      completedFirstEVA = False
+      hero = True
       CAREER_LOG
       {
         flight = 0
@@ -1039,13 +1056,26 @@ GAME
       gender = Male
       type = Crew
       trait = Scientist
-      brave = 0.3
-      dumb = 0.1
+      brave = 0.300000012
+      dumb = 0.100000001
       badS = False
+      veteran = True
       tour = False
       state = Available
+      inactive = False
+      inactiveTimeEnd = 0
+      gExperienced = 0
+      outDueToG = False
       ToD = 0
       idx = -1
+      extraXP = 0
+      hasHelmetOn = False
+      hasNeckRingOn = False
+      lightR = 1
+      lightG = 0.5176
+      lightB = 0
+      completedFirstEVA = False
+      hero = True
       CAREER_LOG
       {
         flight = 0
@@ -1061,13 +1091,26 @@ GAME
       gender = Female
       type = Crew
       trait = Pilot
-      brave = 0.55
-      dumb = 0.4
+      brave = 0.550000012
+      dumb = 0.400000006
       badS = True
+      veteran = True
       tour = False
       state = Available
+      inactive = False
+      inactiveTimeEnd = 0
+      gExperienced = 0
+      outDueToG = False
       ToD = 0
       idx = -1
+      extraXP = 0
+      hasHelmetOn = False
+      hasNeckRingOn = False
+      lightR = 1
+      lightG = 0.5176
+      lightB = 0
+      completedFirstEVA = False
+      hero = True
       CAREER_LOG
       {
         flight = 0

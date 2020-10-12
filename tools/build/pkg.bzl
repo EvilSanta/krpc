@@ -14,8 +14,11 @@ def _apply_exclude(exclude, path):
     """ Apply wildcard exclusion patterns to the path. """
     # TODO: improve this
     for pattern in exclude:
-        if pattern[0] == '*' and path.endswith(pattern[1:]):
-            return True
+        if '*' in pattern:
+            if pattern[0] == '*' and path.endswith(pattern[1:]):
+                return True
+        else:
+            return path == pattern
     return False
 
 def _get_mode(mode_map, path):
@@ -33,11 +36,11 @@ def _stage_files_impl(ctx):
     outs = []
     for src in ctx.files.srcs:
         path = ctx.label.name + '/' + _apply_path_map(ctx.attr.path_map, src.short_path)
-        out = ctx.new_file(ctx.configuration.genfiles_dir, path)
+        out = ctx.actions.declare_file(path)
 
-        sub_commands = ['ln -f -s "`pwd`/%s" "`pwd`/%s"' % (src.path, out.path)]
+        sub_commands = ['cp "%s" "%s"' % (src.path, out.path)]
 
-        ctx.action(
+        ctx.actions.run_shell(
             mnemonic = 'StageFile',
             inputs = [src],
             outputs = [out],
@@ -45,7 +48,7 @@ def _stage_files_impl(ctx):
         )
         outs.append(out)
 
-    return struct(files = set(outs))
+    return struct(files = depset(outs))
 
 stage_files = rule(
     implementation = _stage_files_impl,
@@ -67,7 +70,7 @@ def _pkg_zip_impl(ctx):
     # Copy and chmod all the files to a staging directory
     # to get the required directory structure and permissions in the archive
     # (Note: can't use symlinking as we need to set permissions)
-    staging_dir = output.basename + '.package-tmp'
+    staging_dir = output.short_path.replace('/','-') + '.package-tmp'
     for input in inputs:
         if _apply_exclude(exclude, input.short_path):
             continue
@@ -81,7 +84,7 @@ def _pkg_zip_impl(ctx):
     sub_commands.append('(CWD=`pwd` && cd %s && zip --quiet -r $CWD/%s ./)' % (staging_dir, output.path))
 
     # Generate a zip file from the staging directory
-    ctx.action(
+    ctx.actions.run_shell(
         inputs = inputs,
         outputs = [output],
         progress_message = 'Packaging files into %s' % output.short_path,
@@ -91,7 +94,7 @@ def _pkg_zip_impl(ctx):
 pkg_zip = rule(
     implementation = _pkg_zip_impl,
     attrs = {
-        'files': attr.label_list(allow_files=True, mandatory=True, non_empty=True),
+        'files': attr.label_list(allow_files=True, mandatory=True, allow_empty=True),
         'path_map': attr.string_dict(),
         'mode_map': attr.string_dict(),
         'exclude': attr.string_list(),

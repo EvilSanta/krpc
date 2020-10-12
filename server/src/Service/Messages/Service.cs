@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 
 namespace KRPC.Service.Messages
@@ -14,6 +13,8 @@ namespace KRPC.Service.Messages
 
         public IList<Enumeration> Enumerations { get; private set; }
 
+        public IList<Exception> Exceptions { get; private set; }
+
         public string Documentation { get; set; }
 
         public Service (string name)
@@ -22,7 +23,8 @@ namespace KRPC.Service.Messages
             Procedures = new List<Procedure> ();
             Classes = new List<Class> ();
             Enumerations = new List<Enumeration> ();
-            Documentation = String.Empty;
+            Exceptions = new List<Exception> ();
+            Documentation = string.Empty;
         }
     }
 }

@@ -1,5 +1,3 @@
-using System.Net;
-using KRPC;
 using NUnit.Framework;
 
 namespace KRPC.Test
@@ -10,10 +8,7 @@ namespace KRPC.Test
         [Test]
         public void DefaultConfig ()
         {
-            var config = new Configuration ("settings.cfg");
-            Assert.AreEqual (IPAddress.Loopback, config.Address);
-            Assert.AreEqual (50000, config.RPCPort);
-            Assert.AreEqual (50001, config.StreamPort);
+            var config = new Configuration ();
             Assert.AreEqual (true, config.MainWindowVisible);
             Assert.AreEqual (false, config.AutoAcceptConnections);
         }

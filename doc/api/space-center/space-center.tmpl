@@ -1,5 +1,5 @@
 .. default-domain:: {{ domain.sphinxname }}
-.. highlight:: {{ domain.name }}
+.. highlight:: {{ domain.highlight }}
 {{ domain.currentmodule('SpaceCenter') }}
 {% import domain.macros as macros with context %}
 
@@ -7,4 +7,5 @@ SpaceCenter
 ===========
 
 {{ macros.service(services['SpaceCenter']) }}
+{{ macros.enumeration(services['SpaceCenter'].enumerations['GameMode']) }}
 {{ macros.enumeration(services['SpaceCenter'].enumerations['WarpMode']) }}

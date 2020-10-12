@@ -5,7 +5,6 @@ using System.Linq;
 using KRPC.Server;
 using KRPC.Service;
 using UnityEngine;
-using Tuple3 = KRPC.Utils.Tuple<double, double, double>;
 
 namespace KRPC.UI
 {
@@ -13,7 +12,7 @@ namespace KRPC.UI
     /// Addon for managing the UI
     /// </summary>
     [KSPAddon (KSPAddon.Startup.Flight, false)]
-    sealed public class Addon : MonoBehaviour
+    public sealed class Addon : MonoBehaviour
     {
         static AssetBundle prefabs;
 
@@ -25,10 +24,10 @@ namespace KRPC.UI
             if (prefabs == null) {
                 var dir = System.IO.Path.GetDirectoryName (System.Reflection.Assembly.GetExecutingAssembly ().Location);
                 var path = System.IO.Path.Combine (dir, "KRPC.UI.ksp");
-                prefabs = new WWW ("file://" + path).assetBundle;
+                prefabs = AssetBundle.LoadFromFile ("file://" + path);
             }
             var prefab = prefabs.LoadAsset<GameObject> (prefabName);
-            var obj = UnityEngine.Object.Instantiate (prefab);
+            var obj = Instantiate (prefab);
             obj.transform.SetParent (parent.transform, false);
             return obj;
         }

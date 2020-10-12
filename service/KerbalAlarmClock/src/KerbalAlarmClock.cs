@@ -9,15 +9,23 @@ namespace KRPC.KerbalAlarmClock
 {
     /// <summary>
     /// This service provides functionality to interact with
-    /// <a href="http://forum.kerbalspaceprogram.com/index.php?/topic/22809-10x-kerbal-alarm-clock-v3500-dec-3/">Kerbal Alarm Clock</a>.
+    /// <a href="https://forum.kerbalspaceprogram.com/index.php?/topic/22809-13x-kerbal-alarm-clock-v3850-may-30/">Kerbal Alarm Clock</a>.
     /// </summary>
-    [KRPCService (GameScene = GameScene.All)]
+    [KRPCService (Id = 5, GameScene = GameScene.All)]
     public static class KerbalAlarmClock
     {
         static void CheckAPI ()
         {
             if (!KACWrapper.APIReady)
                 throw new InvalidOperationException ("Kerbal Alarm Clock is not available");
+        }
+
+        /// <summary>
+        /// Whether Kerbal Alarm Clock is available.
+        /// </summary>
+        [KRPCProperty]
+        public static bool Available {
+            get { return KACWrapper.APIReady; }
         }
 
         /// <summary>
@@ -37,7 +45,7 @@ namespace KRPC.KerbalAlarmClock
         /// only returns one of them.
         /// </summary>
         /// <param name="name">Name of the alarm to search for.</param>
-        [KRPCProcedure]
+        [KRPCProcedure (Nullable = true)]
         public static Alarm AlarmWithName (string name)
         {
             CheckAPI ();

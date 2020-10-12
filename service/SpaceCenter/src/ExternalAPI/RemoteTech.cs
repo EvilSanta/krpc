@@ -8,7 +8,7 @@ namespace KRPC.SpaceCenter.ExternalAPI
     {
         public static void Load ()
         {
-            IsAvailable = APILoader.Load (typeof(RemoteTech), "RemoteTech", "RemoteTech.API.API", new Version (1, 7));
+            IsAvailable = (APILoader.Load (typeof(RemoteTech), "RemoteTech", "RemoteTech.API.API", new Version (1, 8)) != null);
         }
 
         public static bool IsAvailable { get; private set; }
@@ -33,7 +33,7 @@ namespace KRPC.SpaceCenter.ExternalAPI
 
         public static Func<IEnumerable<string>> GetGroundStations { get; internal set; }
 
-        public static Func<String,Guid> GetGroundStationGuid { get; internal set; }
+        public static Func<string, Guid> GetGroundStationGuid { get; internal set; }
 
         public static Func<CelestialBody,Guid> GetCelestialBodyGuid { get; internal set; }
 

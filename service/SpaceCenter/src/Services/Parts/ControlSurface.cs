@@ -1,9 +1,11 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using KRPC.Service.Attributes;
 using KRPC.SpaceCenter.ExtensionMethods;
 using KRPC.Utils;
 using Tuple3 = KRPC.Utils.Tuple<double, double, double>;
-using Tuple4 = KRPC.Utils.Tuple<double, double, double, double>;
+using TupleV3 = KRPC.Utils.Tuple<Vector3d, Vector3d>;
+using TupleT3 = KRPC.Utils.Tuple<KRPC.Utils.Tuple<double, double, double>, KRPC.Utils.Tuple<double, double, double>>;
 
 namespace KRPC.SpaceCenter.Services.Parts
 {
@@ -17,7 +19,12 @@ namespace KRPC.SpaceCenter.Services.Parts
 
         internal static bool Is (Part part)
         {
-            return part.InternalPart.HasModule<ModuleControlSurface> ();
+            return Is (part.InternalPart);
+        }
+
+        internal static bool Is (global::Part part)
+        {
+            return part.HasModule<ModuleControlSurface> ();
         }
 
         internal ControlSurface (Part part)
@@ -78,6 +85,16 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
+        /// The authority limiter for the control surface, which controls how far the
+        /// control surface will move.
+        /// </summary>
+        [KRPCProperty]
+        public float AuthorityLimiter {
+            get { return controlSurface.authorityLimiter; }
+            set { controlSurface.authorityLimiter = value; }
+        }
+
+        /// <summary>
         /// Whether the control surface movement is inverted.
         /// </summary>
         [KRPCProperty]
@@ -104,16 +121,19 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The available torque in the pitch, roll and yaw axes of the vessel, in Newton meters.
-        /// These axes correspond to the coordinate axes of the <see cref="Vessel.ReferenceFrame" />.
+        /// The available torque, in Newton meters, that can be produced by this control surface,
+        /// in the positive and negative pitch, roll and yaw axes of the vessel. These axes
+        /// correspond to the coordinate axes of the <see cref="Vessel.ReferenceFrame"/>.
         /// </summary>
         [KRPCProperty]
-        public Tuple3 AvailableTorque {
-            get { return AvailableTorqueVector.ToTuple (); }
+        [SuppressMessage ("Gendarme.Rules.Design.Generic", "DoNotExposeNestedGenericSignaturesRule")]
+        public TupleT3 AvailableTorque {
+            get { return AvailableTorqueVectors.ToTuple (); }
         }
 
-        internal Vector3d AvailableTorqueVector {
-            get { return controlSurface.GetPotentialTorque () * 1000f; }
+        [SuppressMessage ("Gendarme.Rules.Design.Generic", "DoNotExposeNestedGenericSignaturesRule")]
+        internal TupleV3 AvailableTorqueVectors {
+            get { return controlSurface.GetPotentialTorque (); }
         }
     }
 }

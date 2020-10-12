@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using KRPC.Service;
 using KRPC.Service.Attributes;
-using KRPC.Service.Messages;
 
 namespace KRPC.Test.Service
 {
@@ -15,10 +14,19 @@ namespace KRPC.Test.Service
     [SuppressMessage ("Gendarme.Rules.Naming", "AvoidTypeInterfaceInconsistencyRule")]
     public static class TestService
     {
+        [KRPCException]
+        [SuppressMessage ("Gendarme.Rules.Design", "AvoidVisibleNestedTypesRule")]
+        [SuppressMessage ("Gendarme.Rules.Exceptions", "MissingExceptionConstructorsRule")]
+        [SuppressMessage ("Gendarme.Rules.Serialization", "MissingSerializableAttributeOnISerializableTypeRule")]
+        [SuppressMessage ("Gendarme.Rules.Serialization", "MissingSerializationConstructorRule")]
+        public class MyException : Exception {
+        };
+
         internal static ITestService Service;
 
         public static void ProcedureWithoutAttribute ()
         {
+            Service.ProcedureWithoutAttribute ();
         }
 
         /// <summary>
@@ -34,33 +42,27 @@ namespace KRPC.Test.Service
         /// Procedure with a single return argument.
         /// </summary>
         [KRPCProcedure]
-        public static void ProcedureSingleArgNoReturn (Response data)
+        public static void ProcedureSingleArgNoReturn (string x)
         {
-            Service.ProcedureSingleArgNoReturn (data);
+            Service.ProcedureSingleArgNoReturn (x);
         }
 
         [KRPCProcedure]
-        public static void ProcedureThreeArgsNoReturn (Response x, Request y, Response z)
+        public static void ProcedureThreeArgsNoReturn (string x, int y, string z)
         {
             Service.ProcedureThreeArgsNoReturn (x, y, z);
         }
 
         [KRPCProcedure]
-        public static Response ProcedureNoArgsReturns ()
+        public static string ProcedureNoArgsReturns ()
         {
             return Service.ProcedureNoArgsReturns ();
         }
 
         [KRPCProcedure]
-        public static Response ProcedureSingleArgReturns (Response data)
+        public static string ProcedureSingleArgReturns (string x)
         {
-            return Service.ProcedureSingleArgReturns (data);
-        }
-
-        [KRPCProcedure]
-        public static int ProcedureWithValueTypes (float x, string y, byte[] z)
-        {
-            return Service.ProcedureWithValueTypes (x, y, z);
+            return Service.ProcedureSingleArgReturns (x);
         }
 
         [KRPCProperty]
@@ -92,13 +94,19 @@ namespace KRPC.Test.Service
             Service.DeleteTestObject (obj);
         }
 
-        [KRPCProcedure]
+        [KRPCProcedure (Nullable = true)]
         public static TestClass EchoTestObject (TestClass obj)
         {
             return Service.EchoTestObject (obj);
         }
 
-        [KRPCClass]
+        [KRPCProcedure (Nullable = false)]
+        public static TestClass ReturnNullWhenNotAllowed ()
+        {
+            return Service.ReturnNullWhenNotAllowed ();
+        }
+
+        [KRPCClass (GameScene = GameScene.Flight | GameScene.SpaceCenter)]
         [SuppressMessage ("Gendarme.Rules.Design", "AvoidVisibleNestedTypesRule")]
         public class TestClass
         {
@@ -130,13 +138,37 @@ namespace KRPC.Test.Service
             [KRPCProperty]
             public int IntProperty { get; set; }
 
-            [KRPCProperty]
+            [KRPCProperty (Nullable = true)]
             public TestClass ObjectProperty { get; set; }
 
             [KRPCMethod]
             public static string StaticMethod (string a = "")
             {
                 return "jeb" + a;
+            }
+
+            [KRPCMethod]
+            public string MethodAvailableInInheritedGameScene()
+            {
+                return "foo";
+            }
+
+            [KRPCMethod (GameScene = GameScene.EditorVAB)]
+            public string MethodAvailableInSpecifiedGameScene()
+            {
+                return "foo";
+            }
+
+            [KRPCProperty]
+            public string ClassPropertyAvailableInInheritedGameScene
+            {
+                get { return "foo"; }
+            }
+
+            [KRPCProperty (GameScene = GameScene.EditorVAB)]
+            public string ClassPropertyAvailableInSpecifiedGameScene
+            {
+                get { return "foo"; }
             }
         }
 
@@ -228,7 +260,7 @@ namespace KRPC.Test.Service
         }
 
         [KRPCProcedure]
-        public static KRPC.Utils.Tuple<int,bool> EchoTuple (KRPC.Utils.Tuple<int,bool> t)
+        public static global::KRPC.Utils.Tuple<int,bool> EchoTuple (global::KRPC.Utils.Tuple<int,bool> t)
         {
             return Service.EchoTuple (t);
         }
@@ -244,6 +276,97 @@ namespace KRPC.Test.Service
         public static IList<TestClass> EchoListOfObjects (IList<TestClass> l)
         {
             return Service.EchoListOfObjects (l);
+        }
+
+        [SuppressMessage ("Gendarme.Rules.Design", "AvoidVisibleNestedTypesRule")]
+        public static class CreateTupleDefault
+        {
+            public static object Create ()
+            {
+                return new global::KRPC.Utils.Tuple<int,bool> (1, false);
+            }
+        }
+
+        [KRPCProcedure]
+        [KRPCDefaultValue ("x", typeof(CreateTupleDefault))]
+        public static global::KRPC.Utils.Tuple<int,bool> TupleDefault (global::KRPC.Utils.Tuple<int,bool> x)
+        {
+            return Service.TupleDefault (x);
+        }
+
+        [SuppressMessage ("Gendarme.Rules.Design", "AvoidVisibleNestedTypesRule")]
+        public static class CreateListDefault
+        {
+            public static object Create ()
+            {
+                return new List<int> { 1, 2, 3 };
+            }
+        }
+
+        [KRPCProcedure]
+        [KRPCDefaultValue ("x", typeof(CreateListDefault))]
+        public static IList<int> ListDefault (IList<int> x)
+        {
+            return Service.ListDefault (x);
+        }
+
+        [SuppressMessage ("Gendarme.Rules.Design", "AvoidVisibleNestedTypesRule")]
+        public static class CreateSetDefault
+        {
+            public static object Create ()
+            {
+                return new HashSet<int> { 1, 2, 3 };
+            }
+        }
+
+        [KRPCProcedure]
+        [KRPCDefaultValue ("x", typeof(CreateSetDefault))]
+        public static HashSet<int> SetDefault (HashSet<int> x)
+        {
+            return Service.SetDefault (x);
+        }
+
+        [SuppressMessage ("Gendarme.Rules.Design", "AvoidVisibleNestedTypesRule")]
+        public static class CreateDictionaryDefault
+        {
+            public static object Create ()
+            {
+                return new Dictionary<int,bool> {
+                    { 1, false },
+                    { 2, true }
+                };
+            }
+        }
+
+        [KRPCProcedure]
+        [KRPCDefaultValue ("x", typeof(CreateDictionaryDefault))]
+        public static IDictionary<int,bool> DictionaryDefault (IDictionary<int,bool> x)
+        {
+            return Service.DictionaryDefault (x);
+        }
+
+        [KRPCProcedure]
+        public static void ProcedureAvailableInInheritedGameScene()
+        {
+            Service.ProcedureAvailableInInheritedGameScene();
+        }
+
+        [KRPCProcedure (GameScene = GameScene.EditorVAB)]
+        public static void ProcedureAvailableInSpecifiedGameScene()
+        {
+            Service.ProcedureAvailableInSpecifiedGameScene();
+        }
+
+        [KRPCProperty]
+        public static string PropertyAvailableInInheritedGameScene
+        {
+            get { return Service.PropertyAvailableInInheritedGameScene; }
+        }
+
+        [KRPCProperty (GameScene = GameScene.EditorVAB)]
+        public static string PropertyAvailableInSpecifiedGameScene
+        {
+            get { return Service.PropertyAvailableInSpecifiedGameScene; }
         }
     }
 }

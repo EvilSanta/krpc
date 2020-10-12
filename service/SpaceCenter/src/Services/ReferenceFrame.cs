@@ -5,6 +5,8 @@ using KRPC.SpaceCenter.ExtensionMethods;
 using KRPC.SpaceCenter.Services.Parts;
 using KRPC.Utils;
 using UnityEngine;
+using Tuple3 = KRPC.Utils.Tuple<double, double, double>;
+using Tuple4 = KRPC.Utils.Tuple<double, double, double, double>;
 
 namespace KRPC.SpaceCenter.Services
 {
@@ -25,6 +27,7 @@ namespace KRPC.SpaceCenter.Services
     [KRPCClass (Service = "SpaceCenter")]
     [SuppressMessage ("Gendarme.Rules.Maintainability", "AvoidLackOfCohesionOfMethodsRule")]
     [SuppressMessage ("Gendarme.Rules.Maintainability", "VariableNamesShouldNotMatchFieldNamesRule")]
+    [SuppressMessage ("Gendarme.Rules.Smells", "AvoidLargeClassesRule")]
     public class ReferenceFrame : Equatable<ReferenceFrame>
     {
         readonly ReferenceFrameType type;
@@ -34,21 +37,49 @@ namespace KRPC.SpaceCenter.Services
         readonly uint partId;
         readonly ModuleDockingNode dockingPort;
         readonly Thruster thruster;
+        readonly ReferenceFrame parent;
+        readonly Vector3d relativePosition;
+        readonly QuaternionD relativeRotation;
+        readonly Vector3d relativeVelocity;
+        readonly Vector3d relativeAngularVelocity;
+        readonly ReferenceFrame hybridPosition;
+        readonly ReferenceFrame hybridRotation;
+        readonly ReferenceFrame hybridVelocity;
+        readonly ReferenceFrame hybridAngularVelocity;
 
         [SuppressMessage ("Gendarme.Rules.Smells", "AvoidLongParameterListsRule")]
         ReferenceFrame (
             ReferenceFrameType type, global::CelestialBody body = null, global::Vessel vessel = null,
-            ManeuverNode node = null, Part part = null, ModuleDockingNode dockingPort = null, Thruster thruster = null)
+            ManeuverNode node = null, Part part = null, ModuleDockingNode dockingPort = null,
+            Thruster thruster = null, ReferenceFrame parent = null,
+            ReferenceFrame hybridPosition = null, ReferenceFrame hybridRotation = null,
+            ReferenceFrame hybridVelocity = null, ReferenceFrame hybridAngularVelocity = null)
         {
             this.type = type;
             this.body = body;
             vesselId = vessel != null ? vessel.id : Guid.Empty;
             this.node = node;
-            //TODO: is it safe to use a part id of 0 to mean no part?
+            // TODO: is it safe to use a part id of 0 to mean no part?
             if (part != null)
                 partId = part.flightID;
             this.dockingPort = dockingPort;
             this.thruster = thruster;
+            this.parent = parent;
+            this.hybridPosition = hybridPosition;
+            this.hybridRotation = hybridRotation;
+            this.hybridVelocity = hybridVelocity;
+            this.hybridAngularVelocity = hybridAngularVelocity;
+        }
+
+        [SuppressMessage ("Gendarme.Rules.Smells", "AvoidLongParameterListsRule")]
+        ReferenceFrame (ReferenceFrame parent, Vector3d relativePosition, QuaternionD relativeRotation, Vector3d relativeVelocity, Vector3d relativeAngularVelocity)
+        {
+            type = ReferenceFrameType.Relative;
+            this.parent = parent;
+            this.relativePosition = relativePosition;
+            this.relativeRotation = relativeRotation;
+            this.relativeVelocity = relativeVelocity;
+            this.relativeAngularVelocity = relativeAngularVelocity;
         }
 
         /// <summary>
@@ -64,7 +95,18 @@ namespace KRPC.SpaceCenter.Services
             node == other.node &&
             partId == other.partId &&
             dockingPort == other.dockingPort &&
-            thruster == other.thruster;
+            thruster == other.thruster &&
+            parent == other.parent &&
+            (type != ReferenceFrameType.Relative ||
+            (relativePosition == other.relativePosition &&
+            relativeRotation == other.relativeRotation &&
+            relativeVelocity == other.relativeVelocity &&
+            relativeAngularVelocity == other.relativeAngularVelocity)) &&
+            (type != ReferenceFrameType.Hybrid ||
+            (hybridPosition == other.hybridPosition &&
+            hybridRotation == other.hybridRotation &&
+            hybridVelocity == other.hybridVelocity &&
+            hybridAngularVelocity == other.hybridAngularVelocity));
         }
 
         /// <summary>
@@ -83,6 +125,20 @@ namespace KRPC.SpaceCenter.Services
                 hash ^= dockingPort.GetHashCode ();
             if (thruster != null)
                 hash ^= thruster.GetHashCode ();
+            if (parent != null)
+                hash ^= parent.GetHashCode ();
+            if (type == ReferenceFrameType.Relative) {
+                hash ^= relativePosition.GetHashCode ();
+                hash ^= relativeRotation.GetHashCode ();
+                hash ^= relativeVelocity.GetHashCode ();
+                hash ^= relativeAngularVelocity.GetHashCode ();
+            }
+            if (type == ReferenceFrameType.Hybrid) {
+                hash ^= hybridPosition.GetHashCode ();
+                hash ^= hybridRotation.GetHashCode ();
+                hash ^= hybridVelocity.GetHashCode ();
+                hash ^= hybridAngularVelocity.GetHashCode ();
+            }
             return hash;
         }
 
@@ -132,11 +188,11 @@ namespace KRPC.SpaceCenter.Services
         /// <summary>
         /// The docking port.
         /// </summary>
-        public Parts.DockingPort DockingPort {
+        public DockingPort DockingPort {
             get {
                 if (dockingPort == null)
                     throw new InvalidOperationException ("Reference frame has no docking port");
-                return new Parts.DockingPort (new Parts.Part (dockingPort.part));
+                return new DockingPort (new Parts.Part (dockingPort.part));
             }
         }
 
@@ -177,6 +233,9 @@ namespace KRPC.SpaceCenter.Services
                     return dockingPort.nodeTransform;
                 case ReferenceFrameType.Thrust:
                     return thruster.WorldTransform;
+                case ReferenceFrameType.Relative:
+                case ReferenceFrameType.Hybrid:
+                    throw new InvalidOperationException ("Transform not available for relative or hybrid frames");
                 default:
                     throw new InvalidOperationException ("No such reference frame");
                 }
@@ -266,6 +325,79 @@ namespace KRPC.SpaceCenter.Services
             return new ReferenceFrame (ReferenceFrameType.Thrust, part: thruster.Part.InternalPart, thruster: thruster);
         }
 
+        [SuppressMessage ("Gendarme.Rules.Performance", "AvoidUncalledPrivateCodeRule")]
+        static class VectorZero
+        {
+            public static object Create ()
+            {
+                return new Tuple3 (0, 0, 0);
+            }
+        }
+
+        [SuppressMessage ("Gendarme.Rules.Performance", "AvoidUncalledPrivateCodeRule")]
+        static class QuaternionIdentity
+        {
+            public static object Create ()
+            {
+                return new Tuple4 (0, 0, 0, 1);
+            }
+        }
+
+        /// <summary>
+        /// Create a relative reference frame. This is a custom reference frame
+        /// whose components offset the components of a parent reference frame.
+        /// </summary>
+        /// <param name="referenceFrame">The parent reference frame on which to
+        /// base this reference frame.</param>
+        /// <param name="position">The offset of the position of the origin,
+        /// as a position vector. Defaults to <math>(0, 0, 0)</math></param>
+        /// <param name="rotation">The rotation to apply to the parent frames rotation,
+        /// as a quaternion of the form <math>(x, y, z, w)</math>.
+        /// Defaults to <math>(0, 0, 0, 1)</math> (i.e. no rotation)</param>
+        /// <param name="velocity">The linear velocity to offset the parent frame by,
+        /// as a vector pointing in the direction of travel, whose magnitude is the speed in
+        /// meters per second. Defaults to <math>(0, 0, 0)</math>.</param>
+        /// <param name="angularVelocity">The angular velocity to offset the parent frame by,
+        /// as a vector. This vector points in the direction of the axis of rotation,
+        /// and its magnitude is the speed of the rotation in radians per second.
+        /// Defaults to <math>(0, 0, 0)</math>.</param>
+        [KRPCMethod]
+        [KRPCDefaultValue ("position", typeof(VectorZero))]
+        [KRPCDefaultValue ("rotation", typeof(QuaternionIdentity))]
+        [KRPCDefaultValue ("velocity", typeof(VectorZero))]
+        [KRPCDefaultValue ("angularVelocity", typeof(VectorZero))]
+        public static ReferenceFrame CreateRelative (ReferenceFrame referenceFrame, Tuple3 position, Tuple4 rotation, Tuple3 velocity, Tuple3 angularVelocity)
+        {
+            return new ReferenceFrame (referenceFrame, position.ToVector (), rotation.ToQuaternion (), velocity.ToVector (), angularVelocity.ToVector ());
+        }
+
+        /// <summary>
+        /// Create a hybrid reference frame. This is a custom reference frame
+        /// whose components inherited from other reference frames.
+        /// </summary>
+        /// <param name="position">The reference frame providing the position of the origin.</param>
+        /// <param name="rotation">The reference frame providing the rotation of the frame.</param>
+        /// <param name="velocity">The reference frame providing the linear velocity of the frame.
+        /// </param>
+        /// <param name="angularVelocity">The reference frame providing the angular velocity
+        /// of the frame.</param>
+        /// <remarks>
+        /// The <paramref name="position"/> reference frame is required but all other
+        /// reference frames are optional. If omitted, they are set to the
+        /// <paramref name="position"/> reference frame.
+        /// </remarks>
+        [KRPCMethod]
+        public static ReferenceFrame CreateHybrid (ReferenceFrame position, ReferenceFrame rotation = null, ReferenceFrame velocity = null, ReferenceFrame angularVelocity = null)
+        {
+            if (rotation == null)
+                rotation = position;
+            if (velocity == null)
+                velocity = position;
+            if (angularVelocity == null)
+                angularVelocity = position;
+            return new ReferenceFrame (ReferenceFrameType.Hybrid, hybridPosition: position, hybridRotation: rotation, hybridVelocity: velocity, hybridAngularVelocity: angularVelocity);
+        }
+
         /// <summary>
         /// Returns the position of the origin of the reference frame in world-space.
         /// </summary>
@@ -282,14 +414,14 @@ namespace KRPC.SpaceCenter.Services
                 case ReferenceFrameType.VesselOrbital:
                 case ReferenceFrameType.VesselSurface:
                 case ReferenceFrameType.VesselSurfaceVelocity:
-                    return InternalVessel.findWorldCenterOfMass ();
+                    return InternalVessel.CoM;
                 case ReferenceFrameType.Maneuver:
                 case ReferenceFrameType.ManeuverOrbital:
                     {
-                        //TODO: is there a better way to do this?
+                        // TODO: is there a better way to do this?
                         // node.patch.getPositionAtUT (node.UT) appears to return a position vector
                         // in a different space to vessel.GetWorldPos3D()
-                        var vesselPos = FlightGlobals.ActiveVessel.findWorldCenterOfMass ();
+                        var vesselPos = FlightGlobals.ActiveVessel.CoM;
                         var vesselOrbitPos = FlightGlobals.ActiveVessel.orbit.getPositionAtUT (Planetarium.GetUniversalTime ());
                         var nodeOrbitPos = node.patch.getPositionAtUT (node.UT);
                         return vesselPos - vesselOrbitPos + nodeOrbitPos;
@@ -302,6 +434,10 @@ namespace KRPC.SpaceCenter.Services
                     return dockingPort.nodeTransform.position;
                 case ReferenceFrameType.Thrust:
                     return thruster.WorldTransform.position;
+                case ReferenceFrameType.Relative:
+                    return parent.PositionToWorldSpace (relativePosition);
+                case ReferenceFrameType.Hybrid:
+                    return hybridPosition.Position;
                 default:
                     throw new InvalidOperationException ();
                 }
@@ -310,7 +446,8 @@ namespace KRPC.SpaceCenter.Services
 
         /// <summary>
         /// Returns the rotation of the given frame of reference, relative to world space.
-        /// Applying the rotation to a vector in reference-frame-space produces the corresponding vector in world-space.
+        /// Applying the rotation to a vector in reference-frame-space produces the corresponding
+        /// vector in world-space.
         /// </summary>
         public QuaternionD Rotation {
             get {
@@ -347,7 +484,7 @@ namespace KRPC.SpaceCenter.Services
         static Vector3d ToNorthPole (global::Vessel vessel)
         {
             var parent = vessel.mainBody;
-            return parent.position + ((Vector3d)parent.transform.up) * parent.Radius - (vessel.findWorldCenterOfMass ());
+            return parent.position + ((Vector3d)parent.transform.up) * parent.Radius - (vessel.CoM);
         }
 
         /// <summary>
@@ -372,13 +509,13 @@ namespace KRPC.SpaceCenter.Services
                     return InternalVessel.GetOrbit ().GetVel ();
                 case ReferenceFrameType.VesselSurface:
                     {
-                        var right = InternalVessel.findWorldCenterOfMass () - InternalVessel.mainBody.position;
+                        var right = InternalVessel.CoM - InternalVessel.mainBody.position;
                         return Vector3d.Exclude (right, ToNorthPole (InternalVessel).normalized);
                     }
                 case ReferenceFrameType.VesselSurfaceVelocity:
                     return InternalVessel.srf_velocity;
                 case ReferenceFrameType.Maneuver:
-                    return new Node (InternalVessel, node).WorldBurnVector;
+                    return node.GetBurnVector(node.patch);
                 case ReferenceFrameType.ManeuverOrbital:
                     return node.patch.getOrbitalVelocityAtUT (node.UT).SwapYZ ();
                 case ReferenceFrameType.Part:
@@ -388,6 +525,10 @@ namespace KRPC.SpaceCenter.Services
                     return dockingPort.nodeTransform.forward;
                 case ReferenceFrameType.Thrust:
                     return thruster.WorldThrustDirection;
+                case ReferenceFrameType.Relative:
+                    return parent.DirectionToWorldSpace (relativeRotation * Vector3d.up);
+                case ReferenceFrameType.Hybrid:
+                    return hybridRotation.UpNotNormalized;
                 default:
                     throw new InvalidOperationException ();
                 }
@@ -420,14 +561,14 @@ namespace KRPC.SpaceCenter.Services
                     return InternalVessel.GetOrbit ().GetOrbitNormal ().SwapYZ ();
                 case ReferenceFrameType.VesselSurface:
                     {
-                        var right = InternalVessel.findWorldCenterOfMass () - InternalVessel.mainBody.position;
+                        var right = InternalVessel.CoM - InternalVessel.mainBody.position;
                         var northPole = ToNorthPole (InternalVessel).normalized;
                         return Vector3d.Cross (right, northPole);
                     }
                 case ReferenceFrameType.VesselSurfaceVelocity:
                     {
                         // Compute orthogonal vector to vessels velocity, in the horizon plane
-                        var up = (InternalVessel.findWorldCenterOfMass () - InternalVessel.mainBody.position).normalized;
+                        var up = (InternalVessel.CoM - InternalVessel.mainBody.position).normalized;
                         var velocity = InternalVessel.srf_velocity;
                         var proj = GeometryExtensions.ProjectVectorOntoPlane (up, velocity);
                         return Vector3d.Cross (up, proj);
@@ -452,6 +593,10 @@ namespace KRPC.SpaceCenter.Services
                     return -dockingPort.nodeTransform.up;
                 case ReferenceFrameType.Thrust:
                     return thruster.WorldThrustPerpendicularDirection;
+                case ReferenceFrameType.Relative:
+                    return parent.DirectionToWorldSpace (relativeRotation * Vector3d.forward);
+                case ReferenceFrameType.Hybrid:
+                    return hybridRotation.ForwardNotNormalized;
                 default:
                     throw new InvalidOperationException ();
                 }
@@ -476,12 +621,16 @@ namespace KRPC.SpaceCenter.Services
                     return InternalVessel.GetOrbit ().GetVel ();
                 case ReferenceFrameType.Maneuver:
                 case ReferenceFrameType.ManeuverOrbital:
-                    return Vector3d.zero; //TODO: check this
+                    return Vector3d.zero; // TODO: check this
                 case ReferenceFrameType.Part:
                 case ReferenceFrameType.Thrust:
                     return InternalPart.vessel.GetOrbit ().GetVel ();
                 case ReferenceFrameType.DockingPort:
                     return dockingPort.vessel.GetOrbit ().GetVel ();
+                case ReferenceFrameType.Relative:
+                    return parent.VelocityToWorldSpace (relativePosition, relativeVelocity);
+                case ReferenceFrameType.Hybrid:
+                    return hybridVelocity.Velocity;
                 default:
                     throw new InvalidOperationException ();
                 }
@@ -502,7 +651,7 @@ namespace KRPC.SpaceCenter.Services
                 case ReferenceFrameType.CelestialBodyNonRotating:
                     return Vector3d.zero;
                 case ReferenceFrameType.CelestialBodyOrbital:
-                    return Vector3d.zero; //TODO: check this
+                    return Vector3d.zero; // TODO: check this
                 case ReferenceFrameType.Vessel:
                     return InternalVessel.GetComponent<Rigidbody> ().angularVelocity;
                 case ReferenceFrameType.VesselOrbital:
@@ -513,7 +662,11 @@ namespace KRPC.SpaceCenter.Services
                 case ReferenceFrameType.Part:
                 case ReferenceFrameType.DockingPort:
                 case ReferenceFrameType.Thrust:
-                    return Vector3d.zero; //TODO: check this
+                    return Vector3d.zero; // TODO: check this
+                case ReferenceFrameType.Relative:
+                    return parent.AngularVelocityToWorldSpace (relativeAngularVelocity);
+                case ReferenceFrameType.Hybrid:
+                    return hybridVelocity.AngularVelocity;
                 default:
                     throw new InvalidOperationException ();
                 }
@@ -584,7 +737,8 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Convert the given velocity at the given position in world space, to a velocity in this reference frame.
+        /// Convert the given velocity at the given position in world space,
+        /// to a velocity in this reference frame.
         /// </summary>
         public Vector3d VelocityFromWorldSpace (Vector3d worldPosition, Vector3d worldVelocity)
         {
@@ -592,7 +746,8 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Convert the given velocity at the given position in this reference frame, to a velocity in world space.
+        /// Convert the given velocity at the given position in this reference frame,
+        /// to a velocity in world space.
         /// </summary>
         public Vector3d VelocityToWorldSpace (Vector3d position, Vector3d velocity)
         {
@@ -600,8 +755,10 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Convert the given angular velocity in world space, to an angular velocity in this reference frame.
-        /// This only make sense when considering an object that is rotating at the origin of the reference frame.
+        /// Convert the given angular velocity in world space,
+        /// to an angular velocity in this reference frame.
+        /// This only make sense when considering an object that
+        /// is rotating at the origin of the reference frame.
         /// </summary>
         public Vector3d AngularVelocityFromWorldSpace (Vector3d worldAngularVelocity)
         {
@@ -609,8 +766,10 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Convert the given angular velocity at the given position in this reference frame, to an angular velocity in world space.
-        /// This only make sense when considering an object that is rotating at the origin of the reference frame.
+        /// Convert the given angular velocity at the given position in this reference frame,
+        /// to an angular velocity in world space.
+        /// This only make sense when considering an object that is rotating at the origin
+        /// of the reference frame.
         /// </summary>
         public Vector3d AngularVelocityToWorldSpace (Vector3d angularVelocity)
         {

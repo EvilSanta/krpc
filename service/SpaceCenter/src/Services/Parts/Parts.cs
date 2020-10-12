@@ -4,7 +4,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using KRPC.Service.Attributes;
 using KRPC.SpaceCenter.ExtensionMethods;
-using KRPC.SpaceCenter.Services.Parts;
 using KRPC.Utils;
 
 namespace KRPC.SpaceCenter.Services.Parts
@@ -107,6 +106,16 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
+        /// A list of all parts whose <see cref="Part.Tag"/> is <paramref name="tag"/>.
+        /// </summary>
+        /// <param name="tag"></param>
+        [KRPCMethod]
+        public IList<Part> WithTag (string tag)
+        {
+            return All.Where (part => part.Tag == tag).ToList ();
+        }
+
+        /// <summary>
         /// A list of all parts that contain a <see cref="Module"/> whose
         /// <see cref="Module.Name"/> is <paramref name="moduleName"/>.
         /// </summary>
@@ -149,6 +158,14 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
+        /// A list of all antennas in the vessel.
+        /// </summary>
+        [KRPCProperty]
+        public IList<Antenna> Antennas {
+            get { return All.Where (Antenna.Is).Select (part => new Antenna (part)).ToList (); }
+        }
+
+        /// <summary>
         /// A list of all control surfaces in the vessel.
         /// </summary>
         [KRPCProperty]
@@ -181,22 +198,12 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The first docking port in the vessel with the given port name, as returned by <see cref="DockingPort.Name"/>.
-        /// Returns <c>null</c> if there are no such docking ports.
-        /// </summary>
-        /// <param name="name"></param>
-        [KRPCMethod]
-        public DockingPort DockingPortWithName (string name)
-        {
-            return All.Where (DockingPort.Is).Select (part => new DockingPort (part)).FirstOrDefault (port => port.Name == name);
-        }
-
-        /// <summary>
         /// A list of all engines in the vessel.
         /// </summary>
         /// <remarks>
-        /// This includes any part that generates thrust. This covers many different types of engine,
-        /// including liquid fuel rockets, solid rocket boosters, jet engines and RCS thrusters.
+        /// This includes any part that generates thrust. This covers many different types
+        /// of engine, including liquid fuel rockets, solid rocket boosters, jet engines and
+        /// RCS thrusters.
         /// </remarks>
         [KRPCProperty]
         public IList<Engine> Engines {
@@ -208,7 +215,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         [KRPCProperty]
         public IList<Experiment> Experiments {
-            get { return All.Where (Experiment.Is).Select (part => new Experiment (part)).ToList (); }
+            get { return All.SelectMany((arg) => arg.Experiments).ToList(); }
         }
 
         /// <summary>
@@ -228,19 +235,11 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// A list of all landing gear attached to the vessel.
-        /// </summary>
-        [KRPCProperty]
-        public IList<LandingGear> LandingGear {
-            get { return All.Where (Services.Parts.LandingGear.Is).Select (part => new LandingGear (part)).ToList (); }
-        }
-
-        /// <summary>
         /// A list of all landing legs attached to the vessel.
         /// </summary>
         [KRPCProperty]
-        public IList<LandingLeg> LandingLegs {
-            get { return All.Where (LandingLeg.Is).Select (part => new LandingLeg (part)).ToList (); }
+        public IList<Leg> Legs {
+            get { return All.Where (Leg.Is).Select (part => new Leg (part)).ToList (); }
         }
 
         /// <summary>
@@ -321,6 +320,14 @@ namespace KRPC.SpaceCenter.Services.Parts
         [KRPCProperty]
         public IList<SolarPanel> SolarPanels {
             get { return All.Where (SolarPanel.Is).Select (part => new SolarPanel (part)).ToList (); }
+        }
+
+        /// <summary>
+        /// A list of all wheels in the vessel.
+        /// </summary>
+        [KRPCProperty]
+        public IList<Wheel> Wheels {
+            get { return All.Where (Wheel.Is).Select (part => new Wheel (part)).ToList (); }
         }
     }
 }

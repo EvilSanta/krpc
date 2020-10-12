@@ -26,6 +26,7 @@ def main():
         ('UI service', get_changes('service/UI/CHANGES.txt')),
         ('C# client', get_changes('client/csharp/CHANGES.txt')),
         ('C++ client', get_changes('client/cpp/CHANGES.txt')),
+        ('C-nano client', get_changes('client/cnano/CHANGES.txt')),
         ('Java client', get_changes('client/java/CHANGES.txt')),
         ('Lua client', get_changes('client/lua/CHANGES.txt')),
         ('Python client', get_changes('client/python/CHANGES.txt')),
@@ -73,7 +74,7 @@ def get_changes(path):
             line = line.rstrip('\n')
             if line == '':
                 continue
-            m = re.match('^v([0-9]+\.[0-9]+\.[0-9]+)$', line)
+            m = re.match('^v([0-9]+\.[0-9]+\.[0-9]+).*?$', line)
             if m:
                 version = m.group(1)
             elif line.startswith(' * '):
@@ -81,7 +82,7 @@ def get_changes(path):
                     changes[version] = []
                 changes[version].append(line[3:])
             elif line.startswith('   '):
-                changes[version][0] += line[2:]
+                changes[version][-1] += line[2:]
             else:
                 print('Invalid line in ' + path + ':')
                 print(line)

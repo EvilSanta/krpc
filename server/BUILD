@@ -1,7 +1,7 @@
-load('/tools/build/csharp', 'csharp_library', 'csharp_nunit_test', 'csharp_gendarme_test', 'csharp_assembly_info')
-load('/tools/ServiceDefinitions/build', 'service_definitions')
-load('/tools/build/image', 'png_images')
-load('/config', 'version', 'ksp_version', 'assembly_version', 'author')
+load('//tools/build:csharp.bzl', 'csharp_library', 'csharp_nunit_test', 'csharp_gendarme_test', 'csharp_assembly_info')
+load('//tools/ServiceDefinitions:build.bzl', 'service_definitions')
+load('//tools/build:image.bzl', 'png_images')
+load('//:config.bzl', 'version', 'ksp_version_max', 'ksp_version_min', 'assembly_version', 'author')
 
 filegroup(
     name = 'server',
@@ -11,13 +11,17 @@ filegroup(
 
 test_suite(
     name = 'test',
-    tests = [':KRPC.Test', ':gendarme-KRPC', ':gendarme-KRPC.Test'],
-    visibility = ['//:__pkg__']
+    tests = [':test-KRPC', ':lint']
 )
 
 test_suite(
     name = 'ci-test',
-    tests = [':KRPC.Test']
+    tests = [':test-KRPC']
+)
+
+test_suite(
+    name = 'lint',
+    tests = [':gendarme-KRPC', ':gendarme-KRPC.Test']
 )
 
 genrule(
@@ -32,7 +36,7 @@ csharp_assembly_info(
     description = 'RPC server for Kerbal Space Program',
     copyright = author,
     version = assembly_version,
-    custom = {'AssemblyKSPVersion': '"%s"' % ksp_version},
+    custom = {'AssemblyKSPVersion': '"%s", "%s"' % (ksp_version_max, ksp_version_min)},
     internals_visible_to = [
         'KRPC.Test',
         'TestServer',
@@ -59,13 +63,16 @@ deps = [
     '//tools/build/ksp:Assembly-CSharp',
     '//tools/build/ksp:Assembly-CSharp-firstpass',
     '//tools/build/ksp:UnityEngine',
+    '//tools/build/ksp:UnityEngine.AnimationModule',
+    '//tools/build/ksp:UnityEngine.CoreModule',
+    '//tools/build/ksp:UnityEngine.IMGUIModule',
+    '//tools/build/ksp:UnityEngine.InputLegacyModule',
     '//tools/build/ksp:UnityEngine.UI',
-    '//tools/build/ksp:KSPUtil',
     '//tools/build/ksp:mscorlib',
     '//tools/build/ksp:System',
     '//tools/build/ksp:System.Core',
     '//tools/build/ksp:System.Xml',
-    '//tools/build/ksp:System.Xml.Linq'
+    '//tools/build/ksp:KRPC.IO.Ports'
 ]
 
 csharp_library(
@@ -96,31 +103,42 @@ csharp_assembly_info(
     cls_compliant = False
 )
 
-csharp_nunit_test(
+test_deps = [
+    '//server:KRPC',
+    '//tools/build/mono-4.5:Moq',
+    '//tools/build/ksp:Google.Protobuf',
+    '//tools/build/ksp:Assembly-CSharp',
+    '//tools/build/ksp:Assembly-CSharp-firstpass',
+    '//tools/build/ksp:UnityEngine',
+    '//tools/build/ksp:UnityEngine.UI',
+    '//tools/build/ksp:KRPC.IO.Ports',
+    '//tools/build/mono-4.5:mscorlib',
+    '//tools/build/mono-4.5:System',
+    '//tools/build/mono-4.5:System.Core',
+    '//tools/build/mono-4.5:System.Runtime',
+    '//tools/build/mono-4.5:System.IO',
+    '//tools/build/mono-4.5:System.Xml',
+    '//tools/build/mono-4.5:Newtonsoft.Json'
+]
+
+csharp_library(
     name = 'KRPC.Test',
     srcs = glob(['test/**/*.cs']) + [':TestAssemblyInfo'],
-    deps = [
-        '//server:KRPC',
-        '//tools/build/mono-4.5:Moq',
-        '//tools/build/ksp:Google.Protobuf',
-        '//tools/build/ksp:Assembly-CSharp',
-        '//tools/build/ksp:Assembly-CSharp-firstpass',
-        '//tools/build/ksp:UnityEngine',
-        '//tools/build/ksp:UnityEngine.UI',
-        '//tools/build/ksp:KSPUtil',
-        '//tools/build/mono-4.5:mscorlib',
-        '//tools/build/mono-4.5:System',
-        '//tools/build/mono-4.5:System.Core',
-        '//tools/build/mono-4.5:System.Runtime',
-        '//tools/build/mono-4.5:System.IO',
-        '//tools/build/mono-4.5:System.Xml',
-        '//tools/build/mono-4.5:System.Xml.Linq'
-    ],
+    deps = test_deps,
+    nunit_test = True,
     optimize = False,
     define = ['CODE_ANALYSIS'],
     nowarn = ['1591'],
-    size = 'small',
     visibility = ['//:__pkg__']
+)
+
+csharp_nunit_test(
+    name = 'test-KRPC',
+    lib = ':KRPC.Test',
+    deps = test_deps,
+    size = 'small',
+    # FIXME: need to run test outside the sandbox to work around nunit file accesses
+    tags = ['local']
 )
 
 csharp_library(

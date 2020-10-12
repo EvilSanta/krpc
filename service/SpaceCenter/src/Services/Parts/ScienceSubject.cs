@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using KRPC.Service.Attributes;
 
 namespace KRPC.SpaceCenter.Services.Parts
@@ -19,7 +19,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// Amount of science already earned from this subject, not updated until after transmission/recovery.
+        /// Amount of science already earned from this subject, not updated until after
+        /// transmission/recovery.
         /// </summary>
         [KRPCProperty]
         public float Science {
@@ -35,7 +36,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        ///  Whether the experiment has been completed.
+        /// Whether the experiment has been completed.
         /// </summary>
         [KRPCProperty]
         public bool IsComplete {
@@ -51,7 +52,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// Diminishing value multiplier for decreasing the science value returned from repeated experiments.
+        /// Diminishing value multiplier for decreasing the science value returned from repeated
+        /// experiments.
         /// </summary>
         [KRPCProperty]
         public float ScientificValue {

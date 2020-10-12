@@ -1,4 +1,5 @@
 using System;
+using KRPC.Service;
 using KRPC.Service.Messages;
 using NUnit.Framework;
 
@@ -16,7 +17,7 @@ namespace KRPC.Test.Service
             Assert.AreEqual (count, procedure.Parameters.Count);
         }
 
-        public static void HasParameter (Procedure procedure, int position, string type, string name)
+        public static void HasParameter (Procedure procedure, int position, Type type, string name)
         {
             Assert.Less (position, procedure.Parameters.Count);
             var parameter = procedure.Parameters [position];
@@ -26,7 +27,7 @@ namespace KRPC.Test.Service
             Assert.IsNull (parameter.DefaultValue);
         }
 
-        public static void HasParameterWithDefaultValue (Procedure procedure, int position, string type, string name, object defaultValue)
+        public static void HasParameterWithDefaultValue (Procedure procedure, int position, Type type, string name, object defaultValue)
         {
             Assert.Less (position, procedure.Parameters.Count);
             var parameter = procedure.Parameters [position];
@@ -39,39 +40,29 @@ namespace KRPC.Test.Service
         public static void HasNoReturnType (Procedure procedure)
         {
             Assert.IsFalse (procedure.HasReturnType);
-            Assert.AreEqual (String.Empty, procedure.ReturnType);
+            Assert.IsNull (procedure.ReturnType);
         }
 
-        public static void HasReturnType (Procedure procedure, string returnType)
+        public static void HasReturnType (Procedure procedure, Type returnType, bool returnIsNullable = false)
         {
             Assert.IsTrue (procedure.HasReturnType);
             Assert.AreEqual (returnType, procedure.ReturnType);
+            Assert.AreEqual (returnIsNullable, procedure.ReturnIsNullable);
         }
 
-        public static void HasNoAttributes (Procedure procedure)
+        public static void HasGameScene (Procedure procedure, GameScene gameScene)
         {
-            Assert.AreEqual (0, procedure.Attributes.Count);
-        }
-
-        public static void HasAttributes (Procedure procedure, int count)
-        {
-            Assert.AreEqual (count, procedure.Attributes.Count);
-        }
-
-        public static void HasAttribute (Procedure procedure, int position, string attribute)
-        {
-            Assert.Less (position, procedure.Attributes.Count);
-            Assert.AreEqual (attribute, procedure.Attributes [position]);
+            Assert.AreEqual (gameScene, procedure.GameScene);
         }
 
         public static void HasNoDocumentation (Procedure procedure)
         {
-            Assert.AreEqual (String.Empty, procedure.Documentation);
+            Assert.AreEqual (string.Empty, procedure.Documentation);
         }
 
         public static void HasDocumentation (Procedure procedure)
         {
-            Assert.AreNotEqual (String.Empty, procedure.Documentation);
+            Assert.AreNotEqual (string.Empty, procedure.Documentation);
         }
 
         public static void HasDocumentation (Procedure procedure, string documentation)
@@ -81,7 +72,7 @@ namespace KRPC.Test.Service
 
         public static void HasNoDocumentation (Class cls)
         {
-            Assert.AreEqual (String.Empty, cls.Documentation);
+            Assert.AreEqual (string.Empty, cls.Documentation);
         }
 
         public static void HasDocumentation (Class cls, string documentation)
@@ -96,7 +87,7 @@ namespace KRPC.Test.Service
 
         public static void HasValue (Enumeration enumeration, int position, string name, int value)
         {
-            HasValue (enumeration, position, name, value, String.Empty);
+            HasValue (enumeration, position, name, value, string.Empty);
         }
 
         public static void HasValue (Enumeration enumeration, int position, string name, int value, string documentation)
@@ -111,6 +102,11 @@ namespace KRPC.Test.Service
         public static void HasDocumentation (Enumeration enumeration, string documentation)
         {
             Assert.AreEqual (documentation, enumeration.Documentation);
+        }
+
+        public static void HasDocumentation (global::KRPC.Service.Messages.Exception exception, string documentation)
+        {
+            Assert.AreEqual (documentation, exception.Documentation);
         }
     }
 }

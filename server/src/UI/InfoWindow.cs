@@ -87,8 +87,22 @@ namespace KRPC.UI
         }
 
         [SuppressMessage ("Gendarme.Rules.Smells", "AvoidLongMethodsRule")]
-        protected override void Draw ()
+        protected override void Draw (bool needRescale)
         {
+            if (needRescale) {
+                int scaledFontSize = Style.fontSize;
+                Style.fixedWidth = windowWidth * GameSettings.UI_SCALE;
+                labelStyle.fontSize = scaledFontSize;
+                nameLabelStyle.fontSize = scaledFontSize;
+                nameLabelStyle.fixedWidth = 160f * GameSettings.UI_SCALE;
+                valueLabelStyle.fontSize = scaledFontSize;
+                valueLabelStyle.fixedWidth = 120f * GameSettings.UI_SCALE;
+                buttonStyle.fontSize = scaledFontSize;
+
+                // Force window to resize to height of content
+                Position = new Rect (Position.x, Position.y, Position.width, 0f);
+            }
+
             update = ((DateTime.Now - lastUpdate).TotalSeconds > updateTime);
             if (update)
                 lastUpdate = DateTime.Now;
@@ -105,15 +119,16 @@ namespace KRPC.UI
             GUILayoutExtensions.Separator (separatorStyle);
 
             GUILayout.Label (rpcInfoText, labelStyle);
+            Configuration config = Configuration.Instance;
             DrawInfo (rpcsExecutedText, core.RPCsExecuted.ToString ());
             DrawInfo (rpcRateText, Math.Round (core.RPCRate) + " RPC/s");
-            DrawInfo (rpcExecutionMode, core.OneRPCPerUpdate ? singleRPCModeText : (core.AdaptiveRateControl ? adaptiveModeText : staticModeText));
-            DrawInfo (maxTimePerUpdateText, core.OneRPCPerUpdate ? notApplicableText : core.MaxTimePerUpdate + " ns");
-            DrawInfo (rpcReceiveModeText, core.BlockingRecv ? blockingModeText : nonBlockingModeText);
-            DrawInfo (recvTimeoutText, core.BlockingRecv ? core.RecvTimeout + " ns" : notApplicableText);
-            DrawInfo (timePerRPCUpdateText, String.Format ("{0:F5} s", core.TimePerRPCUpdate));
-            DrawInfo (pollTimePerRPCUpdateText, String.Format ("{0:F5} s", core.PollTimePerRPCUpdate));
-            DrawInfo (execTimePerRPCUpdateText, String.Format ("{0:F5} s", core.ExecTimePerRPCUpdate));
+            DrawInfo (rpcExecutionMode, config.OneRPCPerUpdate ? singleRPCModeText : (config.AdaptiveRateControl ? adaptiveModeText : staticModeText));
+            DrawInfo (maxTimePerUpdateText, config.OneRPCPerUpdate ? notApplicableText : config.MaxTimePerUpdate + " ns");
+            DrawInfo (rpcReceiveModeText, config.BlockingRecv ? blockingModeText : nonBlockingModeText);
+            DrawInfo (recvTimeoutText, config.BlockingRecv ? config.RecvTimeout + " ns" : notApplicableText);
+            DrawInfo (timePerRPCUpdateText, string.Format ("{0:F5} s", core.TimePerRPCUpdate));
+            DrawInfo (pollTimePerRPCUpdateText, string.Format ("{0:F5} s", core.PollTimePerRPCUpdate));
+            DrawInfo (execTimePerRPCUpdateText, string.Format ("{0:F5} s", core.ExecTimePerRPCUpdate));
 
             GUILayoutExtensions.Separator (separatorStyle);
 
@@ -121,7 +136,7 @@ namespace KRPC.UI
             DrawInfo (streamingRPCsText, core.StreamRPCs.ToString ());
             DrawInfo (streamingRPCsExecutedText, core.StreamRPCsExecuted.ToString ());
             DrawInfo (streamingRPCRateText, Math.Round (core.StreamRPCRate) + " RPC/s");
-            DrawInfo (timePerStreamUpdateText, String.Format ("{0:F5} s", core.TimePerStreamUpdate));
+            DrawInfo (timePerStreamUpdateText, string.Format ("{0:F5} s", core.TimePerStreamUpdate));
 
             GUILayoutExtensions.Separator (separatorStyle);
 
@@ -135,7 +150,7 @@ namespace KRPC.UI
             GUI.DragWindow ();
         }
 
-        static String BytesToString (ulong bytes)
+        static string BytesToString (ulong bytes)
         {
             string[] suffix = { "B", "KB", "MB", "GB", "TB", "PB", "EB" };
             if (bytes == 0)

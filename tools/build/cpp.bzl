@@ -14,7 +14,7 @@ def _check_impl(ctx):
     args.extend(['-I%s' % x.short_path for x in includes])
     args.extend([x.short_path for x in srcs])
 
-    ctx.file_action(
+    ctx.actions.write(
         ctx.outputs.executable,
         '/usr/bin/cppcheck %s\n' % ' '.join(args)
     )
@@ -41,7 +41,7 @@ def _lint_impl(ctx):
     extra_files = ctx.files.extra_files
     filters = ctx.attr.filters
     cpplint = ctx.executable.cpplint
-    cpplint_runfiles = list(ctx.attr.cpplint.default_runfiles.files)
+    cpplint_runfiles = ctx.attr.cpplint.default_runfiles.files.to_list()
     runfiles = [cpplint] + cpplint_runfiles + srcs + hdrs + extra_files
     sub_commands = []
 
@@ -51,16 +51,16 @@ def _lint_impl(ctx):
     for f in cpplint_runfiles:
         _add_runfile(sub_commands, f.short_path, runfiles_dir+ '/' + cpplint.basename + '.runfiles/krpc/' + f.short_path)
 
-    args = ['--linelength=120']
+    args = ['--linelength=100']
     if filters != None:
         args.append('--filter=%s' % ','.join(filters))
     args.extend([x.short_path for x in srcs + hdrs])
     sub_commands.append('%s/%s %s' % (runfiles_dir, cpplint.basename, ' '.join(args)))
 
-    ctx.file_action(
+    ctx.actions.write(
         ctx.outputs.executable,
         content = ' &&\n'.join(sub_commands)+'\n',
-        executable = True
+        is_executable = True
     )
 
     return struct(
@@ -75,8 +75,8 @@ cpp_lint_test = rule(
         'hdrs': attr.label_list(allow_files=True),
         'includes': attr.label_list(allow_files=True),
         'extra_files': attr.label_list(allow_files=True),
-        'filters': attr.string_list(),
-        'cpplint': attr.label(default=Label('//tools/build/cpplint'), executable=True)
+        'filters': attr.string_list(default=['+build/include_alpha']),
+        'cpplint': attr.label(default=Label('//tools/build/cpplint'), executable=True, cfg='host')
     },
     test = True
 )

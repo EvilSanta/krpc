@@ -1,6 +1,7 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using KRPC.Service;
 using KRPC.Service.Scanner;
 using UnityEngine;
@@ -11,7 +12,7 @@ namespace KRPC
     /// Check kRPC services.
     /// </summary>
     [KSPAddon (KSPAddon.Startup.Instantly, true)]
-    sealed public class ServicesChecker : MonoBehaviour
+    public sealed class ServicesChecker : MonoBehaviour
     {
         internal static bool OK { get; private set; }
 
@@ -25,15 +26,20 @@ namespace KRPC
         public void Start ()
         {
             OK = true;
-            try {
-                var services = Scanner.GetServices ();
-                if (CheckDocumented)
-                    CheckDocumentation (services.Values);
-            } catch (ServiceException e) {
+            var errors = new List<string>();
+            var services = Scanner.GetServices (errors);
+            if (errors.Any()) {
                 OK = false;
-                var msg = e.Message + Environment.NewLine + (e.Assembly == null ? "unknown" : e.Assembly.Location);
-                PopupDialog.SpawnPopupDialog (new Vector2 (0.5f, 0.5f), new Vector2 (0.5f, 0.5f), "kRPC service error - plugin disabled", msg, "OK", true, HighLogic.UISkin);
+                Utils.Logger.WriteLine("Service errors encountered, plugin has been disabled. Errors were:", Utils.Logger.Severity.Error);
+                foreach (var error in errors)
+                    Utils.Logger.WriteLine(error, Utils.Logger.Severity.Error);
+                Utils.Compatibility.SpawnPopupDialog(
+                    new Vector2 (0.5f, 0.5f), new Vector2 (0.5f, 0.5f), "krpc-service-error", "kRPC Service Error",
+                    "Service errors encountered, plugin has been disabled. See the log for more information.",
+                    "OK", true, HighLogic.UISkin);
             }
+            if (CheckDocumented)
+                CheckDocumentation (services.Values);
         }
 
         [SuppressMessage ("Gendarme.Rules.Performance", "AvoidRepetitiveCallsToPropertiesRule")]
@@ -48,7 +54,9 @@ namespace KRPC
                     msg += Environment.NewLine + notDocumented [i];
                 if (n > 10)
                     msg += Environment.NewLine + "...";
-                PopupDialog.SpawnPopupDialog (new Vector2 (0.5f, 0.5f), new Vector2 (0.5f, 0.5f), "kRPC service warning", msg, "OK", true, HighLogic.UISkin);
+                Utils.Compatibility.SpawnPopupDialog(
+                    new Vector2 (0.5f, 0.5f), new Vector2 (0.5f, 0.5f), "krpc-service-warning",
+                    "kRPC service warning", msg, "OK", true, HighLogic.UISkin);
             }
         }
 

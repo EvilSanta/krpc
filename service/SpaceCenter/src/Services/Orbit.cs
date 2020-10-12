@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using KRPC.Service.Attributes;
 using KRPC.SpaceCenter.ExtensionMethods;
 using KRPC.Utils;
@@ -64,10 +66,12 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Gets the apoapsis of the orbit, in meters, from the center of mass of the body being orbited.
+        /// Gets the apoapsis of the orbit, in meters, from the center of mass
+        /// of the body being orbited.
         /// </summary>
         /// <remarks>
-        /// For the apoapsis altitude reported on the in-game map view, use <see cref="Orbit.ApoapsisAltitude"/>.
+        /// For the apoapsis altitude reported on the in-game map view,
+        /// use <see cref="ApoapsisAltitude"/>.
         /// </remarks>
         [KRPCProperty]
         public double Apoapsis {
@@ -75,10 +79,12 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// The periapsis of the orbit, in meters, from the center of mass of the body being orbited.
+        /// The periapsis of the orbit, in meters, from the center of mass
+        /// of the body being orbited.
         /// </summary>
         /// <remarks>
-        /// For the periapsis altitude reported on the in-game map view, use <see cref="Orbit.PeriapsisAltitude"/>.
+        /// For the periapsis altitude reported on the in-game map view,
+        /// use <see cref="PeriapsisAltitude"/>.
         /// </remarks>
         [KRPCProperty]
         public double Periapsis {
@@ -89,7 +95,7 @@ namespace KRPC.SpaceCenter.Services
         /// The apoapsis of the orbit, in meters, above the sea level of the body being orbited.
         /// </summary>
         /// <remarks>
-        /// This is equal to <see cref="Orbit.Apoapsis"/> minus the equatorial radius of the body.
+        /// This is equal to <see cref="Apoapsis"/> minus the equatorial radius of the body.
         /// </remarks>
         [KRPCProperty]
         public double ApoapsisAltitude {
@@ -100,7 +106,7 @@ namespace KRPC.SpaceCenter.Services
         /// The periapsis of the orbit, in meters, above the sea level of the body being orbited.
         /// </summary>
         /// <remarks>
-        /// This is equal to <see cref="Orbit.Periapsis"/> minus the equatorial radius of the body.
+        /// This is equal to <see cref="Periapsis"/> minus the equatorial radius of the body.
         /// </remarks>
         [KRPCProperty]
         public double PeriapsisAltitude {
@@ -128,7 +134,8 @@ namespace KRPC.SpaceCenter.Services
 
         /// <summary>
         /// The current radius of the orbit, in meters. This is the distance between the center
-        /// of mass of the object in orbit, and the center of mass of the body around which it is orbiting.
+        /// of mass of the object in orbit, and the center of mass of the body around which it
+        /// is orbiting.
         /// </summary>
         /// <remarks>
         /// This value will change over time if the orbit is elliptical.
@@ -174,7 +181,8 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// The <a href="https://en.wikipedia.org/wiki/Orbital_eccentricity">eccentricity</a> of the orbit.
+        /// The <a href="https://en.wikipedia.org/wiki/Orbital_eccentricity">eccentricity</a>
+        /// of the orbit.
         /// </summary>
         [KRPCProperty]
         public double Eccentricity {
@@ -182,7 +190,8 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// The <a href="https://en.wikipedia.org/wiki/Orbital_inclination">inclination</a> of the orbit,
+        /// The <a href="https://en.wikipedia.org/wiki/Orbital_inclination">inclination</a>
+        /// of the orbit,
         /// in radians.
         /// </summary>
         [KRPCProperty]
@@ -191,8 +200,8 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// The <a href="https://en.wikipedia.org/wiki/Longitude_of_the_ascending_node">longitude of the
-        /// ascending node</a>, in radians.
+        /// The <a href="https://en.wikipedia.org/wiki/Longitude_of_the_ascending_node">longitude of
+        /// the ascending node</a>, in radians.
         /// </summary>
         [KRPCProperty]
         public double LongitudeOfAscendingNode {
@@ -200,7 +209,8 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// The <a href="https://en.wikipedia.org/wiki/Argument_of_periapsis">argument of periapsis</a>, in radians.
+        /// The <a href="https://en.wikipedia.org/wiki/Argument_of_periapsis">argument of
+        /// periapsis</a>, in radians.
         /// </summary>
         [KRPCProperty]
         public double ArgumentOfPeriapsis {
@@ -217,7 +227,8 @@ namespace KRPC.SpaceCenter.Services
 
         /// <summary>
         /// The time since the epoch (the point at which the
-        /// <a href="https://en.wikipedia.org/wiki/Mean_anomaly">mean anomaly at epoch</a> was measured, in seconds.
+        /// <a href="https://en.wikipedia.org/wiki/Mean_anomaly">mean anomaly at epoch</a>
+        /// was measured, in seconds.
         /// </summary>
         [KRPCProperty]
         public double Epoch {
@@ -249,50 +260,66 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// The unit direction vector that is normal to the orbits reference plane, in the given
-        /// reference frame. The reference plane is the plane from which the orbits inclination is measured.
+        /// The direction that is normal to the orbits reference plane,
+        /// in the given reference frame.
+        /// The reference plane is the plane from which the orbits inclination is measured.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The direction as a unit vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// direction is in.</param>
         [KRPCMethod]
         public static Tuple3 ReferencePlaneNormal (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.DirectionFromWorldSpace (Planetarium.up).normalized.ToTuple ();
         }
 
         /// <summary>
-        /// The unit direction vector from which the orbits longitude of ascending node is measured,
+        /// The direction from which the orbits longitude of ascending node is measured,
         /// in the given reference frame.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The direction as a unit vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// direction is in.</param>
         [KRPCMethod]
         public static Tuple3 ReferencePlaneDirection (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.DirectionFromWorldSpace (Planetarium.right).normalized.ToTuple ();
         }
 
         /// <summary>
-        /// If the object is going to change sphere of influence in the future, returns the new orbit
-        /// after the change. Otherwise returns <c>null</c>.
+        /// If the object is going to change sphere of influence in the future, returns the new
+        /// orbit after the change. Otherwise returns <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public Orbit NextOrbit {
-            get { return (Double.IsNaN (TimeToSOIChange)) ? null : new Orbit (InternalOrbit.nextPatch); }
+            get { return (double.IsNaN (TimeToSOIChange)) ? null : new Orbit (InternalOrbit.nextPatch); }
         }
 
         /// <summary>
-        /// The time until the object changes sphere of influence, in seconds. Returns <c>NaN</c> if the
-        /// object is not going to change sphere of influence.
+        /// The time until the object changes sphere of influence, in seconds. Returns <c>NaN</c>
+        /// if the object is not going to change sphere of influence.
         /// </summary>
         [KRPCProperty]
         public double TimeToSOIChange {
             get {
                 var time = InternalOrbit.UTsoi - SpaceCenter.UT;
-                return time < 0 ? Double.NaN : time;
+                return time < 0 ? double.NaN : time;
             }
+        }
+
+        /// <summary>
+        /// The mean anomaly at the given time.
+        /// </summary>
+        /// <param name="ut">The universal time in seconds.</param>
+        [KRPCMethod]
+        public double MeanAnomalyAtUT(double ut)
+        {
+            var percent = InternalOrbit.getObtAtUT(ut) / InternalOrbit.period;
+            return percent * (2 * Math.PI);
         }
 
         /// <summary>
@@ -361,6 +388,191 @@ namespace KRPC.SpaceCenter.Services
         public double OrbitalSpeedAt (double time)
         {
             return InternalOrbit.getOrbitalSpeedAt (time);
+        }
+
+        /// <summary>
+        /// The orbital radius at the given time, in meters.
+        /// </summary>
+        /// <param name="ut">The universal time to measure the radius at.</param>
+        [KRPCMethod]
+        public double RadiusAt (double ut)
+        {
+            return InternalOrbit.getRelativePositionAtUT(ut).magnitude;
+        }
+
+        /// <summary>
+        /// The position at a given time, in the specified reference frame.
+        /// </summary>
+        /// <returns>The position as a vector.</returns>
+        /// <param name="ut">The universal time to measure the position at.</param>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// position vector is in.</param>
+        [KRPCMethod]
+        public Tuple3 PositionAt (double ut, ReferenceFrame referenceFrame)
+        {
+            if (ReferenceEquals (referenceFrame, null))
+                throw new ArgumentNullException (nameof (referenceFrame));
+            return referenceFrame.PositionFromWorldSpace(InternalOrbit.getPositionAtUT(ut)).ToTuple();
+        }
+
+        /// <summary>
+        /// Estimates and returns the time at closest approach to a target orbit.
+        /// </summary>
+        /// <returns>The universal time at closest approach, in seconds.</returns>
+        /// <param name="target">Target orbit.</param>
+        [KRPCMethod]
+        public double TimeOfClosestApproach (Orbit target)
+        {
+            if (ReferenceEquals (target, null))
+                throw new ArgumentNullException (nameof (target));
+            double distance;
+            return CalcClosestAproach(this, target, Planetarium.GetUniversalTime(), out distance);
+        }
+
+        /// <summary>
+        /// Estimates and returns the distance at closest approach to a target orbit, in meters.
+        /// </summary>
+        /// <param name="target">Target orbit.</param>
+        [KRPCMethod]
+        public double DistanceAtClosestApproach (Orbit target)
+        {
+            if (ReferenceEquals (target, null))
+                throw new ArgumentNullException (nameof (target));
+            double distance;
+            CalcClosestAproach(this, target, Planetarium.GetUniversalTime(), out distance);
+            return distance;
+        }
+
+        /// <summary>
+        /// Returns the times at closest approach and corresponding distances, to a target orbit.
+        /// </summary>
+        /// <returns>
+        /// A list of two lists.
+        /// The first is a list of times at closest approach, as universal times in seconds.
+        /// The second is a list of corresponding distances at closest approach, in meters.
+        /// </returns>
+        /// <param name="target">Target orbit.</param>
+        /// <param name="orbits">The number of future orbits to search.</param>
+        [KRPCMethod]
+        [SuppressMessage ("Gendarme.Rules.Design.Generic", "DoNotExposeNestedGenericSignaturesRule")]
+        public IList<IList<double>> ListClosestApproaches(Orbit target, int orbits)
+        {
+            if (ReferenceEquals (target, null))
+                throw new ArgumentNullException (nameof (target));
+            var times = new List<double>();
+            var distances = new List<double>();
+            double distance;
+            double orbitstart = Planetarium.GetUniversalTime();
+            double period = InternalOrbit.period;
+            for (int i = 0; i < orbits; i++) {
+                times.Add(CalcClosestAproach(this, target, orbitstart, out distance));
+                distances.Add(distance);
+                orbitstart += period;
+            }
+            var combined = new List<IList<double>>();
+            combined.Add(times);
+            combined.Add(distances);
+            return combined;
+        }
+
+        /// <summary>
+        /// Helper function to calculate the closest approach distance and time to a target orbit
+        /// in a given orbital period.
+        /// </summary>
+        /// <param name="myOrbit">Orbit of the controlled vessel.</param>
+        /// <param name="targetOrbit">Orbit of the target.</param>
+        /// <param name="beginTime">Time to begin search, which continues for
+        /// one orbital period from this time.</param>
+        /// <param name="distance">The distance at the closest approach, in meters.</param>
+        /// <returns>The universal time at closest approach, in seconds.</returns>
+        [SuppressMessage ("Gendarme.Rules.Design", "AvoidRefAndOutParametersRule")]
+        public static double CalcClosestAproach(Orbit myOrbit, Orbit targetOrbit, double beginTime, out double distance)
+        {
+            if (ReferenceEquals (myOrbit, null))
+                throw new ArgumentNullException (nameof (myOrbit));
+            if (ReferenceEquals (targetOrbit, null))
+                throw new ArgumentNullException (nameof (targetOrbit));
+            double approachTime = beginTime;
+            double approachDistance = double.MaxValue;
+            double mintime = beginTime;
+            double interval = myOrbit.Period;
+            if (myOrbit.Eccentricity > 1.0)
+                interval = 100 / myOrbit.InternalOrbit.meanMotion;
+            double maxtime = mintime + interval;
+
+            // Conduct coarse search
+            double timestep = (maxtime - mintime) / 20;
+            double placeholder = mintime;
+            while (placeholder < maxtime) {
+                Vector3d PosA = myOrbit.InternalOrbit.getPositionAtUT(placeholder);
+                Vector3d PosB = targetOrbit.InternalOrbit.getPositionAtUT(placeholder);
+                double thisDistance = Vector3d.Distance(PosA, PosB);
+                if (thisDistance < approachDistance) {
+                    approachDistance = thisDistance;
+                    approachTime = placeholder;
+                }
+                placeholder += timestep;
+            }
+
+            // Conduct fine search
+            double fine_mintime = approachTime - timestep;
+            double fine_maxtime = approachTime + timestep;
+            if (fine_maxtime > maxtime) fine_maxtime = maxtime;
+            if (fine_mintime<mintime) fine_mintime = mintime;
+            timestep = (fine_maxtime - fine_mintime) / 50;
+            placeholder = fine_mintime;
+
+            while (placeholder < fine_maxtime) {
+                Vector3d PosA = myOrbit.InternalOrbit.getPositionAtUT(placeholder);
+                Vector3d PosB = targetOrbit.InternalOrbit.getPositionAtUT(placeholder);
+                double thisDistance = Vector3d.Distance(PosA, PosB);
+                if (thisDistance < approachDistance) {
+                    approachDistance = thisDistance;
+                    approachTime = placeholder;
+                }
+                placeholder += timestep;
+            }
+            distance = approachDistance;
+            return approachTime;
+        }
+
+        /// <summary>
+        /// The true anomaly of the ascending node with the given target orbit.
+        /// </summary>
+        /// <param name="target">Target orbit.</param>
+        [KRPCMethod]
+        public double TrueAnomalyAtAN(Orbit target)
+        {
+            if (ReferenceEquals (target, null))
+                throw new ArgumentNullException (nameof (target));
+            var degrees = FinePrint.Utilities.OrbitUtilities.AngleOfAscendingNode(InternalOrbit, target.InternalOrbit);
+            return GeometryExtensions.ToRadians (GeometryExtensions.ClampAngle180 (degrees));
+        }
+
+        /// <summary>
+        /// The true anomaly of the descending node with the given target orbit.
+        /// </summary>
+        /// <param name="target">Target orbit.</param>
+        [KRPCMethod]
+        public double TrueAnomalyAtDN(Orbit target)
+        {
+            if (ReferenceEquals (target, null))
+                throw new ArgumentNullException (nameof (target));
+            var degrees = FinePrint.Utilities.OrbitUtilities.AngleOfDescendingNode(InternalOrbit, target.InternalOrbit);
+            return GeometryExtensions.ToRadians (GeometryExtensions.ClampAngle180 (degrees));
+        }
+
+        /// <summary>
+        /// Relative inclination of this orbit and the target orbit, in radians.
+        /// </summary>
+        /// <param name="target">Target orbit.</param>
+        [KRPCMethod]
+        public double RelativeInclination(Orbit target)
+        {
+            if (ReferenceEquals (target, null))
+                throw new ArgumentNullException (nameof (target));
+            var degrees = FinePrint.Utilities.OrbitUtilities.GetRelativeInclination(InternalOrbit, target.InternalOrbit);
+            return GeometryExtensions.ToRadians(degrees);
         }
     }
 }

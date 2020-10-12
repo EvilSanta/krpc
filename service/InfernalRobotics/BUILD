@@ -1,8 +1,8 @@
-load('/config', 'assembly_version', 'author')
-load('/tools/build/csharp', 'csharp_library', 'csharp_assembly_info', 'csharp_gendarme_test')
-load('/tools/build/python', 'py_lint_test')
-load('/tools/ServiceDefinitions/build', 'service_definitions')
-load('/service/build', 'service_deps')
+load('//:config.bzl', 'assembly_version', 'author')
+load('//tools/build:csharp.bzl', 'csharp_library', 'csharp_assembly_info', 'csharp_gendarme_test')
+load('//tools/build:python.bzl', 'py_lint_test')
+load('//tools/ServiceDefinitions:build.bzl', 'service_definitions')
+load('//service:build.bzl', 'service_deps')
 
 filegroup(
     name = 'InfernalRobotics',
@@ -39,13 +39,18 @@ service_definitions(
 
 test_suite(
     name = 'test',
-    tests = [':lint', ':gendarme']
+    tests = [':lint']
+)
+
+test_suite(
+    name = 'lint',
+    tests = [':pylint',':gendarme']
 )
 
 py_lint_test(
-    name = 'lint',
+    name = 'pylint',
     srcs = glob(['test/*.py']),
-    rcfile = 'test/pylint.rc',
+    pylint_config = 'test/pylint.rc',
     deps = ['//client/python', '//tools/krpctest'],
     size = 'small'
 )

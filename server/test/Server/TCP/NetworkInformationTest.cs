@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -15,15 +14,13 @@ namespace KRPC.Test.Server.TCP
         {
             List<IPAddress> addresses = NetworkInformation.LocalIPAddresses.ToList ();
             Assert.IsTrue (addresses.Contains (IPAddress.Loopback));
-            //foreach (var address in addresses)
-            //    Console.WriteLine (address);
         }
 
         [Test]
         [Ignore]
         public void GetLoopbackSubnetMask ()
         {
-            Assert.AreEqual (String.Empty, NetworkInformation.GetSubnetMask (IPAddress.Loopback).ToString ());
+            Assert.AreEqual (string.Empty, NetworkInformation.GetSubnetMask (IPAddress.Loopback).ToString ());
         }
     }
 }

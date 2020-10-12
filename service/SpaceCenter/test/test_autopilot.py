@@ -3,6 +3,7 @@ import krpctest
 from krpctest.geometry import normalize
 import krpc
 
+
 class TestAutoPilot(krpctest.TestCase):
 
     @classmethod
@@ -201,7 +202,8 @@ class TestAutoPilot(krpctest.TestCase):
         self.ap.engage()
         for roll in (0, -54, -90, 27, 45, 90):
             self.ap.target_roll = roll
-            self.assertAlmostEqual(abs(set_roll - roll), self.ap.roll_error, delta=1)
+            self.assertAlmostEqual(
+                abs(set_roll - roll), self.ap.roll_error, delta=1)
         self.ap.disengage()
 
         for wheel in self.vessel.parts.reaction_wheels:
@@ -216,7 +218,8 @@ class TestAutoPilot(krpctest.TestCase):
             self.vessel.parts.engines[0].thrusters[0].thrust_reference_frame
         ]
         for frame in frames:
-            self.assertRaises(krpc.client.RPCError, setattr, self.ap, 'reference_frame', frame)
+            self.assertRaises(krpc.client.RPCError, setattr,
+                              self.ap, 'reference_frame', frame)
 
     def test_reset_on_disconnect(self):
         conn = self.connect(use_cached=False)
@@ -234,8 +237,8 @@ class TestAutoPilot(krpctest.TestCase):
         vessel = conn.space_center.active_vessel
         ap = vessel.auto_pilot
         self.assertEqual(vessel.surface_reference_frame, ap.reference_frame)
-        #FIXME: tuples returned from server cannot be null
-        #self.assertEqual(None, ap.target_direction)
+        # FIXME: tuples returned from server cannot be null
+        # self.assertEqual(None, ap.target_direction)
         self.assertIsNaN(ap.target_roll)
         conn.close()
 
@@ -260,6 +263,7 @@ class TestAutoPilot(krpctest.TestCase):
         self.assertIsNotNone(ap.target_direction)
         self.assertEqual(30, ap.target_roll)
         conn.close()
+
 
 class TestAutoPilotSAS(krpctest.TestCase):
 
@@ -287,10 +291,17 @@ class TestAutoPilotSAS(krpctest.TestCase):
         self.ap.target_direction = direction
         self.ap.target_roll = roll
 
+    def check_direction(self, direction, roll=None):
+        flight = self.vessel.flight()
+        self.assertAlmostEqual(direction, flight.direction, delta=0.1)
+        if roll is not None:
+            self.assertAlmostEqual(roll, flight.roll, delta=1)
+
     def test_sas_error(self):
         flight = self.vessel.flight()
         self.set_direction(flight.prograde, roll=27)
         self.wait_for_autopilot()
+        self.check_direction(flight.prograde, roll=27)
 
         self.ap.sas = True
         for wheel in self.vessel.parts.reaction_wheels:
@@ -320,6 +331,7 @@ class TestAutoPilotSAS(krpctest.TestCase):
         for wheel in self.vessel.parts.reaction_wheels:
             wheel.active = True
 
+
 class TestAutoPilotOtherVessel(krpctest.TestCase):
 
     @classmethod
@@ -331,7 +343,8 @@ class TestAutoPilotOtherVessel(krpctest.TestCase):
         space_center = cls.connect().space_center
         next(iter(space_center.active_vessel.parts.docking_ports)).undock()
         cls.vessel = space_center.active_vessel
-        cls.other_vessel = next(v for v in space_center.vessels if v != cls.vessel)
+        cls.other_vessel = next(
+            v for v in space_center.vessels if v != cls.vessel)
 
     def test_autopilot(self):
         ap = self.other_vessel.auto_pilot
@@ -340,6 +353,7 @@ class TestAutoPilotOtherVessel(krpctest.TestCase):
         ap.engage()
         ap.wait()
         ap.disengage()
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -11,13 +11,16 @@ def _apply_path_map(path_map, path):
     return match
 
 def _create_py_env(out, install):
-    tmp = out+'.tmp-create-py-env'
+    tmp = out+'.tmp-create-py-env.$$'
     cmds = [
+        'PWD=`pwd`',
         'rm -rf %s' % tmp,
-        'virtualenv %s --quiet --no-site-packages' % tmp
+        'virtualenv %s --python python3 --quiet --never-download --no-site-packages' % tmp
     ]
     for lib in install:
-        cmds.append('%s/bin/python %s/bin/pip install --quiet --no-deps %s' % (tmp, tmp, lib.path))
+        cmds.append(
+            'CFLAGS="-O0" %s/bin/python %s/bin/pip install --quiet --no-deps --no-cache-dir file:$PWD/%s'
+            % (tmp, tmp, lib.path))
     cmds.extend([
         '(CWD=`pwd`; cd %s; tar -c -f $CWD/%s *)' % (tmp, out)
     ])
@@ -33,7 +36,7 @@ def _extract_py_env(env, path):
 def _add_runfile(sub_commands, path, runfile_path):
     sub_commands.extend([
         'mkdir -p `dirname %s`' % runfile_path,
-        'ln -f -s "`pwd`/%s" "`pwd`/%s"' % (path, runfile_path)
+        'cp "%s" "%s"' % (path, runfile_path)
     ])
 
 def _sdist_impl(ctx):
@@ -44,27 +47,27 @@ def _sdist_impl(ctx):
     # Symlink all the files to a staging directory
     # to get the required directory structure in the archive
     staging_dir = output.basename + '.py-sdist-tmp'
-    staging_dir_path = output.path.replace(
-        ctx.configuration.bin_dir.path, ctx.configuration.genfiles_dir.path) + '.py-sdist-tmp'
     staging_inputs = []
     for input in inputs:
         staging_path = staging_dir + '/' + _apply_path_map(path_map, input.short_path)
-        staging_file = ctx.new_file(ctx.configuration.genfiles_dir, staging_path)
+        staging_file = ctx.actions.declare_file(staging_path)
 
-        ctx.action(
+        ctx.actions.run_shell(
             mnemonic = 'PackageFile',
             inputs = [input],
             outputs = [staging_file],
-            command = 'ln -f -s "`pwd`/%s" "`pwd`/%s"' % (input.path, staging_file.path)
+            command = 'cp "%s" "%s"' % (input.path, staging_file.path)
         )
         staging_inputs.append(staging_file)
 
     # Run setup.py sdist from the staging directory
+    staging_dir_path = output.path.replace(
+        ctx.configuration.bin_dir.path, ctx.configuration.genfiles_dir.path) + '.py-sdist-tmp'
     sub_commands = [
         '(cd %s ; BAZEL_BUILD=1 python setup.py --quiet sdist --formats=zip)' % staging_dir_path,
         'cp %s/dist/*.zip %s' % (staging_dir_path, output.path)
     ]
-    ctx.action(
+    ctx.actions.run_shell(
         inputs = staging_inputs,
         outputs = [output],
         progress_message = 'Packaging files into %s' % output.short_path,
@@ -74,24 +77,24 @@ def _sdist_impl(ctx):
 py_sdist = rule(
     implementation = _sdist_impl,
     attrs = {
-        'files': attr.label_list(allow_files=True, mandatory=True, non_empty=True),
+        'files': attr.label_list(allow_files=True, mandatory=True, allow_empty=True),
         'path_map': attr.string_dict(),
         'out': attr.output(mandatory=True)
     }
 )
 
 def _script_impl(ctx):
-    script_setup = ctx.new_file(ctx.configuration.genfiles_dir, 'py_script-setup-%s' % ctx.attr.script)
-    script_env = ctx.new_file(ctx.configuration.genfiles_dir, 'py_script-env-%s' % ctx.attr.script)
+    script_setup = ctx.actions.declare_file('py_script-setup-%s' % ctx.attr.script)
+    script_env = ctx.actions.declare_file('py_script-env-%s' % ctx.attr.script)
     script_run = ctx.outputs.executable
 
-    ctx.file_action(
+    ctx.actions.write(
         output = script_setup,
-        content = '&& \\\n'.join(_create_py_env(script_env.path, install = ctx.files.deps + [ctx.file.pkg]))+'\n',
-        executable = True
+        content = ' && \\\n'.join(_create_py_env(script_env.path, install = ctx.files.deps + [ctx.file.pkg]))+'\n',
+        is_executable = True
     )
 
-    ctx.action(
+    ctx.actions.run(
         inputs = [ctx.file.pkg] + ctx.files.deps,
         outputs = [script_env],
         progress_message = 'Setting up python script %s' % ctx.attr.script,
@@ -99,13 +102,14 @@ def _script_impl(ctx):
         use_default_shell_env = True
     )
 
-    env = ctx.attr.script+'.py_script-env'
+    env = ctx.attr.script+'.py_script-env-$$'
     sub_commands = _extract_py_env('$0.runfiles/krpc/%s' % script_env.short_path, env)
     sub_commands.append('%s/bin/python %s/bin/%s "$@"' % (env, env, ctx.attr.script))
-    ctx.file_action(
+    sub_commands.append('rm -rf %s' % env)
+    ctx.actions.write(
         output = script_run,
         content = ' && \\\n'.join(sub_commands)+'\n',
-        executable = True
+        is_executable = True
     )
 
     return struct(
@@ -118,24 +122,29 @@ py_script = rule(
     implementation = _script_impl,
     attrs = {
         'script': attr.string(mandatory=True),
-        'pkg': attr.label(allow_files=True, single_file=True),
+        'pkg': attr.label(allow_single_file=True),
         'deps': attr.label_list(allow_files=True)
     },
     executable = True
 )
 
 def _test_impl(ctx, pyexe='python2'):
-    sub_commands = ['virtualenv env --quiet --no-site-packages --python=%s' % pyexe]
+    sub_commands = ['virtualenv env --python %s --quiet --never-download --no-site-packages' % pyexe]
     for dep in ctx.files.deps:
-        sub_commands.append('env/bin/python env/bin/pip install --quiet --no-deps %s' % dep.short_path)
+        if pyexe == 'python3' and dep.path == 'external/python_enum34/file/downloaded':
+            # enum34 not required with Python 3
+            continue
+        sub_commands.append(
+            'env/bin/python env/bin/pip install --quiet --no-deps --no-cache-dir file:`pwd`/%s'
+            % dep.short_path)
     sub_commands.extend([
         'unzip -o %s' % (ctx.file.src.short_path), #TODO: install the package then run the tests??
         '(cd %s ; ../env/bin/python setup.py test)' % ctx.attr.pkg
     ])
-    ctx.file_action(
+    ctx.actions.write(
         output = ctx.outputs.executable,
-        content = '&& \\\n'.join(sub_commands)+'\n',
-        executable = True
+        content = ' && \\\n'.join(sub_commands)+'\n',
+        is_executable = True
     )
 
     runfiles = ctx.runfiles(files = [ctx.file.src] + ctx.files.deps)
@@ -146,68 +155,100 @@ def _test_impl(ctx, pyexe='python2'):
         runfiles = runfiles
     )
 
-py_test = rule(
-    implementation = _test_impl,
-    attrs = {
-        'src': attr.label(allow_files=True, single_file=True),
-        'pkg': attr.string(mandatory=True),
-        'deps': attr.label_list(allow_files=True)
-    },
-    test = True
-)
+def _test2_impl(ctx):
+    return _test_impl(ctx, pyexe='python2')
 
 def _test3_impl(ctx):
     return _test_impl(ctx, pyexe='python3')
 
-py3_test = rule(
-    implementation = _test3_impl,
+py2_test = rule(
+    implementation = _test2_impl,
     attrs = {
-        'src': attr.label(allow_files=True, single_file=True),
+        'src': attr.label(allow_single_file=True),
         'pkg': attr.string(mandatory=True),
         'deps': attr.label_list(allow_files=True)
     },
     test = True
 )
 
-def _lint_impl(ctx):
+py3_test = rule(
+    implementation = _test3_impl,
+    attrs = {
+        'src': attr.label(allow_single_file=True),
+        'pkg': attr.string(mandatory=True),
+        'deps': attr.label_list(allow_files=True)
+    },
+    test = True
+)
 
+py_test = py3_test
+
+def _lint_impl(ctx):
     out = ctx.outputs.executable
     files = []
     deps = list(ctx.files.deps)
-    if ctx.attr.src:
-        # Run pylint on a python package
-        args = [ctx.attr.pkg]
-        deps.append(ctx.file.src)
+    pycodestyle_args = []
+    pylint_args = []
+    if ctx.attr.pycodestyle_config:
+        pycodestyle_args.append('--config=%s' % ctx.file.pycodestyle_config.short_path)
+    if ctx.attr.pylint_config:
+        pylint_args.append('--rcfile=%s' % ctx.file.pylint_config.short_path)
+    if ctx.attr.pkg:
+        # Run on a python package
+        pycodestyle_args.append('env/lib/python*/site-packages/%s' % ctx.attr.pkg_name)
+        pylint_args.append(ctx.attr.pkg_name)
+        deps.append(ctx.file.pkg)
     else:
-        # Run pylint on a list of file paths
-        args = []
+        # Run on a list of file paths
         for x in ctx.files.srcs:
-            args.append(x.short_path)
+            pycodestyle_args.append(x.short_path)
+            pylint_args.append(x.short_path)
         files.extend(ctx.files.srcs)
+
+    pycodestyle = ctx.executable.pycodestyle
     pylint = ctx.executable.pylint
-    pylint_runfiles = list(ctx.attr.pylint.default_runfiles.files)
-    runfiles = [pylint] + pylint_runfiles + files + deps + [ctx.file.rcfile]
+    pycodestyle_runfiles = ctx.attr.pycodestyle.default_runfiles.files.to_list()
+    pylint_runfiles = ctx.attr.pylint.default_runfiles.files.to_list()
+
+    runfiles = [pycodestyle, pylint] + pycodestyle_runfiles + pylint_runfiles + files + deps
+    if ctx.attr.pycodestyle_config:
+        runfiles.append(ctx.file.pycodestyle_config)
+    if ctx.attr.pylint_config:
+        runfiles.append(ctx.file.pylint_config)
+
     sub_commands = []
 
     # Install dependences in a new virtual env
-    sub_commands = ['virtualenv env --quiet --no-site-packages']
+    sub_commands = ['virtualenv env --python python3 --quiet --never-download --no-site-packages']
     for dep in deps:
-        sub_commands.append('env/bin/python env/bin/pip install --quiet --no-deps %s' % dep.short_path)
+        sub_commands.append(
+            'env/bin/python env/bin/pip install --quiet --no-deps --no-cache-dir file:`pwd`/%s'
+            % dep.short_path)
 
-    # Run the pylint tool
+    # Run pycodestyle
+    runfiles_dir = out.path + '.runfiles/krpc'
+    sub_commands.append('rm -rf %s' % runfiles_dir)
+    _add_runfile(sub_commands, pycodestyle.short_path, runfiles_dir + '/' + pycodestyle.basename)
+    for f in pycodestyle_runfiles:
+        _add_runfile(sub_commands, f.short_path, runfiles_dir+ '/' + pycodestyle.basename + '.runfiles/krpc/' + f.short_path)
+    sub_commands.append('%s/%s %s' % (runfiles_dir, pycodestyle.basename, ' '.join(pycodestyle_args)))
+    sub_commands.append('rm -rf %s' % runfiles_dir)
+
+    # Run pylint
     runfiles_dir = out.path + '.runfiles/krpc'
     sub_commands.append('rm -rf %s' % runfiles_dir)
     _add_runfile(sub_commands, pylint.short_path, runfiles_dir + '/' + pylint.basename)
     for f in pylint_runfiles:
         _add_runfile(sub_commands, f.short_path, runfiles_dir+ '/' + pylint.basename + '.runfiles/krpc/' + f.short_path)
-    # Set pythonpath so that pylint finds the dependent packags from the new env
-    #FIXME: make this generic, depends on usingn python2.7
-    sub_commands.append('PYTHONPATH=env/lib/python2.7/site-packages %s/%s %s %s' % (runfiles_dir, pylint.basename, '--rcfile=%s' % ctx.file.rcfile.short_path, ' '.join(args)))
+    # Set pythonpath so that pylint finds the dependent packages from the virtual environment
+    sub_commands.append('pylibdir=`find env/lib -maxdepth 1 -name "python*"`')
+    sub_commands.append('PYTHONPATH=${pylibdir}/site-packages PYLINTHOME=%s %s/%s %s' % (runfiles_dir, runfiles_dir, pylint.basename, ' '.join(pylint_args)))
+    sub_commands.append('rm -rf %s' % runfiles_dir)
 
-    ctx.file_action(
+    ctx.actions.write(
         ctx.outputs.executable,
         content = ' &&\n'.join(sub_commands)+'\n',
-        executable = True
+        is_executable = True
     )
 
     return struct(
@@ -218,12 +259,14 @@ def _lint_impl(ctx):
 py_lint_test = rule(
     implementation = _lint_impl,
     attrs = {
-        'src': attr.label(allow_files=True, single_file=True),
-        'pkg': attr.string(),
+        'pkg': attr.label(allow_single_file=True),
+        'pkg_name': attr.string(),
         'srcs': attr.label_list(allow_files=True),
         'deps': attr.label_list(allow_files=True),
-        'rcfile': attr.label(allow_files=True, single_file=True),
-        'pylint': attr.label(default=Label('//tools/build/pylint'), executable=True)
+        'pycodestyle_config': attr.label(allow_single_file=True),
+        'pylint_config': attr.label(allow_single_file=True),
+        'pycodestyle': attr.label(default=Label('//tools/build/pycodestyle'), executable=True, cfg='host'),
+        'pylint': attr.label(default=Label('//tools/build/pylint'), executable=True, cfg='host')
     },
     test = True
 )

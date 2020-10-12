@@ -14,19 +14,20 @@ namespace KRPC.SpaceCenter.Services.Parts
     /// Obtained by calling <see cref="Part.Experiment"/>.
     /// </summary>
     [KRPCClass (Service = "SpaceCenter")]
+    [SuppressMessage ("Gendarme.Rules.Maintainability", "AvoidLackOfCohesionOfMethodsRule")]
     public class Experiment : Equatable<Experiment>
     {
         readonly ModuleScienceExperiment experiment;
+        // Note: IScienceDataContainer needs to be used for some methods, rather than
+        // ModuleScienceExperiment, as method dispatch uses the wrong method implementation for
+        // DMagic science experiments
+        readonly IScienceDataContainer dataContainer;
 
-        internal static bool Is (Part part)
-        {
-            return part.InternalPart.HasModule<ModuleScienceExperiment> ();
-        }
-
-        internal Experiment (Part part)
+        internal Experiment(Part part, ModuleScienceExperiment experiment_)
         {
             Part = part;
-            experiment = part.InternalPart.Module<ModuleScienceExperiment> ();
+            experiment = experiment_;
+            dataContainer = experiment_;
             if (experiment == null)
                 throw new ArgumentException ("Part is not a science experiment");
         }
@@ -53,6 +54,26 @@ namespace KRPC.SpaceCenter.Services.Parts
         [KRPCProperty]
         public Part Part { get; private set; }
 
+
+        /// <summary>
+        /// Internal name of the experiment, as used in
+        /// <a href="https://wiki.kerbalspaceprogram.com/wiki/CFG_File_Documentation">part cfg files</a>.
+        /// </summary>
+        [KRPCProperty]
+        public string Name
+        {
+            get { return experiment.experimentID; }
+        }
+
+        /// <summary>
+        /// Title of the experiment, as shown on the in-game UI.
+        /// </summary>
+        [KRPCProperty]
+        public string Title
+        {
+            get { return experiment.experiment.experimentTitle; }
+        }
+
         /// <summary>
         /// Run the experiment.
         /// </summary>
@@ -63,29 +84,49 @@ namespace KRPC.SpaceCenter.Services.Parts
                 throw new InvalidOperationException ("Experiment already contains data");
             if (Inoperable)
                 throw new InvalidOperationException ("Experiment is inoperable");
-            //FIXME: Don't use private API!!!
+            // Stock experiments
+            // FIXME: Don't use private API!!!
             var gatherData = experiment.GetType ().GetMethod ("gatherData", BindingFlags.NonPublic | BindingFlags.Instance);
-            var result = (IEnumerator)gatherData.Invoke (experiment, new object[] { false });
-            experiment.StartCoroutine (result);
+            if (gatherData != null)
+            {
+                var result = (IEnumerator)gatherData.Invoke(experiment, new object[] { false });
+                experiment.StartCoroutine(result);
+                return;
+            }
+            // DMagic experiments
+            gatherData = experiment.GetType().GetMethod("gatherScienceData", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+            if (gatherData != null) {
+                gatherData.Invoke(experiment, new object[] { true });
+                return;
+            }
+            throw new InvalidOperationException("Failed to find a gather data method for this experiment");
         }
 
         /// <summary>
         /// Transmit all experimental data contained by this part.
         /// </summary>
         [KRPCMethod]
-        [SuppressMessage ("Gendarme.Rules.Performance", "ReviewLinqMethodRule")]
+        [SuppressMessage ("Gendarme.Rules.Performance", "DoNotIgnoreMethodResultRule")]
         public void Transmit ()
         {
-            var data = experiment.GetData ();
-            if (!data.Any ())
-                return;
-            var transmitters = experiment.vessel.FindPartModulesImplementing<IScienceDataTransmitter> ();
-            if (!transmitters.Any ())
+            var data = dataContainer.GetData ();
+            for (int i = 0; i < data.Length; i++) {
+                // Use ExperimentResultDialogPage to compute the science value
+                // This object creation modifies the data object
+                new ExperimentResultDialogPage(
+                    experiment.part, data[i], data[i].baseTransmitValue, data[i].transmitBonus,
+                    false, string.Empty, false,
+                    new ScienceLabSearch(experiment.part.vessel, data[i]),
+                    null, null, null, null);
+            }
+            var transmitter = ScienceUtil.GetBestTransmitter(experiment.vessel);
+            if (transmitter == null)
                 throw new InvalidOperationException ("No transmitters available to transmit the data");
-            transmitters.OrderBy (ScienceUtil.GetTransmitterScore).First ().TransmitData (data.ToList ());
-            if (!experiment.IsRerunnable ())
-                experiment.SetInoperable ();
-            Dump ();
+            transmitter.TransmitData (data.ToList ());
+            for (int i = 0; i < data.Length; i++)
+                dataContainer.DumpData(data[i]);
+            if (experiment.useCooldown)
+                experiment.cooldownToGo = experiment.cooldownTimer;
         }
 
         /// <summary>
@@ -94,8 +135,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         [KRPCMethod]
         public void Dump ()
         {
-            foreach (var data in experiment.GetData ())
-                experiment.DumpData (data);
+            foreach (var data in dataContainer.GetData ())
+                dataContainer.DumpData (data);
         }
 
         /// <summary>
@@ -130,7 +171,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         [KRPCProperty]
         public bool Rerunnable {
-            get { return experiment.IsRerunnable (); }
+            get { return dataContainer.IsRerunnable (); }
         }
 
         /// <summary>
@@ -138,7 +179,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         [KRPCProperty]
         public bool HasData {
-            get { return experiment.GetData ().Any (); }
+            get { return dataContainer.GetData().Any (); }
         }
 
         /// <summary>
@@ -146,7 +187,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         [KRPCProperty]
         public IList<ScienceData> Data {
-            get { return experiment.GetData ().Select (data => new ScienceData (experiment, data)).ToList (); }
+            get { return dataContainer.GetData().Select (data => new ScienceData (experiment, data)).ToList (); }
         }
 
         /// <summary>
@@ -171,21 +212,22 @@ namespace KRPC.SpaceCenter.Services.Parts
                 var vessel = Part.InternalPart.vessel;
                 var biome = vessel.LandedInKSC ? getKSCBiome (vessel)
                     : ScienceUtil.GetExperimentBiome (vessel.mainBody, vessel.latitude, vessel.longitude);
-                return biome.Replace (" ", String.Empty);
+                return biome.Replace (" ", string.Empty);
             }
         }
 
         static string getKSCBiome (global::Vessel vessel)
         {
             var at = vessel.landedAt;
-            return at == "KSC" ? at : at.Replace ("KSC", String.Empty).Replace ("Grounds", String.Empty).Replace ("_", String.Empty);
+            return at == "KSC" ? at : at.Replace ("KSC", string.Empty).Replace ("Grounds", string.Empty).Replace ("_", string.Empty);
         }
 
         /// <summary>
-        /// Containing information on the corresponding specific science result for the current conditions.
-        /// Returns null if experiment is unavailable.
+        /// Containing information on the corresponding specific science result for the current
+        /// conditions. Returns <c>null</c> if the experiment is unavailable.
         /// </summary>
         [KRPCProperty]
+        [SuppressMessage ("Gendarme.Rules.Performance", "UseStringEmptyRule")]
         public ScienceSubject ScienceSubject {
             get {
                 if (!Available)
@@ -195,7 +237,7 @@ namespace KRPC.SpaceCenter.Services.Parts
                 var bodyName = vessel.mainBody.name;
                 var situation = ScienceUtil.GetExperimentSituation (vessel);
                 var rndExperiment = ResearchAndDevelopment.GetExperiment (id);
-                var biome = rndExperiment.BiomeIsRelevantWhile (situation) ? Biome : String.Empty;
+                var biome = rndExperiment.BiomeIsRelevantWhile (situation) ? Biome : string.Empty;
                 var subjectId = string.Format ("{0}@{1}{2}{3}", id, bodyName, situation, biome);
                 var subject = ResearchAndDevelopment.GetSubjectByID (subjectId);
                 subject = subject ?? new global::ScienceSubject (rndExperiment, situation, vessel.mainBody, biome);

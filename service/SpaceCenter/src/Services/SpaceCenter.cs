@@ -7,8 +7,11 @@ using KRPC.Continuations;
 using KRPC.Service;
 using KRPC.Service.Attributes;
 using KRPC.SpaceCenter.ExtensionMethods;
+using KRPC.Utils;
+using KSP.UI;
+using KSP.UI.Screens.Flight;
+using PreFlightTests;
 using UnityEngine;
-using Tuple2 = KRPC.Utils.Tuple<double, double>;
 using Tuple3 = KRPC.Utils.Tuple<double, double, double>;
 using Tuple4 = KRPC.Utils.Tuple<double, double, double, double>;
 
@@ -18,19 +21,65 @@ namespace KRPC.SpaceCenter.Services
     /// Provides functionality to interact with Kerbal Space Program. This includes controlling
     /// the active vessel, managing its resources, planning maneuver nodes and auto-piloting.
     /// </summary>
-    [KRPCService (GameScene = GameScene.Flight)]
+    [KRPCService (Id = 2)]
     public static class SpaceCenter
     {
         /// <summary>
-        /// The currently active vessel.
+        /// The current mode the game is in.
         /// </summary>
         [KRPCProperty]
+        public static GameMode GameMode {
+            get { return HighLogic.CurrentGame.Mode.ToGameMode(); }
+        }
+
+        /// <summary>
+        /// The current amount of science.
+        /// </summary>
+        [KRPCProperty]
+        public static float Science
+        {
+            get {
+                if (ReferenceEquals(ResearchAndDevelopment.Instance, null))
+                    throw new InvalidOperationException("Science not available");
+                return ResearchAndDevelopment.Instance.Science;
+            }
+        }
+
+        /// <summary>
+        /// The current amount of funds.
+        /// </summary>
+        [KRPCProperty]
+        public static double Funds {
+            get {
+                if (ReferenceEquals(Funding.Instance, null))
+                    throw new InvalidOperationException("Funding not available");
+                return Funding.Instance.Funds;
+            }
+        }
+
+        /// <summary>
+        /// The current amount of reputation.
+        /// </summary>
+        [KRPCProperty]
+        public static float Reputation
+        {
+            get {
+                if (ReferenceEquals(global::Reputation.Instance, null))
+                    throw new InvalidOperationException("Reputation not available");
+                return global::Reputation.Instance.reputation;
+            }
+        }
+
+        /// <summary>
+        /// The currently active vessel.
+        /// </summary>
+        [KRPCProperty (GameScene = GameScene.Flight)]
         public static Vessel ActiveVessel {
             get { return new Vessel (FlightGlobals.ActiveVessel); }
             set {
                 if (ReferenceEquals (value, null))
                     throw new ArgumentNullException ("ActiveVessel");
-                FlightGlobals.SetActiveVessel (value.InternalVessel);
+                FlightGlobals.ForceSetActiveVessel (value.InternalVessel);
                 throw new YieldException (new ParameterizedContinuationVoid<int> (WaitForVesselSwitch, 0));
             }
         }
@@ -40,9 +89,9 @@ namespace KRPC.SpaceCenter.Services
         /// </summary>
         static void WaitForVesselSwitch (int tick)
         {
-            if (FlightGlobals.ActiveVessel.packed)
+            if (FlightGlobals.ActiveVessel == null || FlightGlobals.ActiveVessel.packed)
                 throw new YieldException (new ParameterizedContinuationVoid<int> (WaitForVesselSwitch, 0));
-            if (tick < 10)
+            if (tick < 25)
                 throw new YieldException (new ParameterizedContinuationVoid<int> (WaitForVesselSwitch, tick + 1));
         }
 
@@ -82,46 +131,62 @@ namespace KRPC.SpaceCenter.Services
         /// <summary>
         /// The currently targeted celestial body.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true, GameScene = GameScene.Flight)]
         public static CelestialBody TargetBody {
             get {
                 var target = FlightGlobals.fetch.VesselTarget as global::CelestialBody;
                 return target != null ? new CelestialBody (target) : null;
             }
-            set { FlightGlobals.fetch.SetVesselTarget (ReferenceEquals (value, null) ? null : value.InternalBody); }
+            set { FlightGlobals.fetch.SetVesselTarget (ReferenceEquals (value, null) ? null : value.InternalBody, true); }
         }
 
         /// <summary>
         /// The currently targeted vessel.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true, GameScene = GameScene.Flight)]
         public static Vessel TargetVessel {
             get {
                 var target = FlightGlobals.fetch.VesselTarget as global::Vessel;
                 return target != null ? new Vessel (target) : null;
             }
-            set { FlightGlobals.fetch.SetVesselTarget (ReferenceEquals (value, null) ? null : value.InternalVessel); }
+            set { FlightGlobals.fetch.SetVesselTarget (ReferenceEquals (value, null) ? null : value.InternalVessel, true); }
         }
 
         /// <summary>
         /// The currently targeted docking port.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true, GameScene = GameScene.Flight)]
         public static Parts.DockingPort TargetDockingPort {
             get {
                 var target = FlightGlobals.fetch.VesselTarget as ModuleDockingNode;
                 return target != null ? new Parts.DockingPort (new Parts.Part (target.part)) : null;
             }
-            set { FlightGlobals.fetch.SetVesselTarget (ReferenceEquals (value, null) ? null : value.InternalPort); }
+            set { FlightGlobals.fetch.SetVesselTarget (ReferenceEquals (value, null) ? null : value.InternalPort, true); }
         }
 
         /// <summary>
         /// Clears the current target.
         /// </summary>
-        [KRPCProcedure]
+        [KRPCProcedure (GameScene = GameScene.Flight)]
         public static void ClearTarget ()
         {
-            FlightGlobals.fetch.SetVesselTarget (null);
+            FlightGlobals.fetch.SetVesselTarget (null, true);
+        }
+
+        /// <summary>
+        /// The waypoint manager.
+        /// </summary>
+        [KRPCProperty (GameScene = GameScene.Flight)]
+        public static WaypointManager WaypointManager {
+            get { return new WaypointManager (); }
+        }
+
+        /// <summary>
+        /// The contract manager.
+        /// </summary>
+        [KRPCProperty]
+        public static ContractManager ContractManager {
+            get { return new ContractManager(); }
         }
 
         static string GetFullCraftDirectory (string craftDirectory)
@@ -130,9 +195,11 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Returns a list of vessels from the given <paramref name="craftDirectory"/> that can be launched.
+        /// Returns a list of vessels from the given <paramref name="craftDirectory"/>
+        /// that can be launched.
         /// </summary>
-        /// <param name="craftDirectory">Name of the directory in the current saves "Ships" directory. For example <c>"VAB"</c> or <c>"SPH"</c>.</param>
+        /// <param name="craftDirectory">Name of the directory in the current saves
+        /// "Ships" directory. For example <c>"VAB"</c> or <c>"SPH"</c>.</param>
         [KRPCProcedure]
         public static IList<string> LaunchableVessels (string craftDirectory)
         {
@@ -145,49 +212,153 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
+        /// Helper class for launching a new vessel.
+        /// </summary>
+        [SuppressMessage ("Gendarme.Rules.Smells", "AvoidLargeClassesRule")]
+        [SuppressMessage ("Gendarme.Rules.Maintainability", "AvoidLackOfCohesionOfMethodsRule")]
+        sealed class LaunchConfig {
+            public LaunchConfig(string craftDirectory, string name, string launchSite, bool recover) {
+                LaunchSite = launchSite;
+                Recover = recover;
+                // Load the vessel and its default crew
+                if (craftDirectory == "VAB")
+                    EditorDriver.editorFacility = EditorFacility.VAB;
+                else if (craftDirectory == "SPH")
+                    EditorDriver.editorFacility = EditorFacility.SPH;
+                else
+                    throw new ArgumentException("Invalid craftDirectory, should be VAB or SPH");
+                Path = ShipConstruction.GetSavePath(name);
+                template = ShipConstruction.LoadTemplate(Path);
+                if (template == null)
+                    throw new InvalidOperationException("Failed to load template for vessel");
+                manifest = HighLogic.CurrentGame.CrewRoster.DefaultCrewForVessel(
+                    template.config, VesselCrewManifest.FromConfigNode(template.config));
+
+                facility = (craftDirectory == "SPH") ? SpaceCenterFacility.SpaceplaneHangar : SpaceCenterFacility.VehicleAssemblyBuilding;
+                facilityLevel = ScenarioUpgradeableFacilities.GetFacilityLevel(facility);
+                site = (launchSite == "Runway") ? SpaceCenterFacility.Runway : SpaceCenterFacility.LaunchPad;
+                siteLevel = ScenarioUpgradeableFacilities.GetFacilityLevel(site);
+                isPad = (site == SpaceCenterFacility.LaunchPad);
+            }
+
+            public void RunPreFlightChecks()
+            {
+                var checks = new PreFlightCheck(
+                    () => { preFlightChecksComplete = true; },
+                    () => error = "Failed to launch vessel. Did not pass pre-flight checks.");
+                var gameVars = GameVariables.Instance;
+                checks.AddTest(new CraftWithinPartCountLimit(template, facility, gameVars.GetPartCountLimit(facilityLevel, isPad)));
+                checks.AddTest(new CraftWithinSizeLimits(template, site, gameVars.GetCraftSizeLimit(siteLevel, isPad)));
+                checks.AddTest(new CraftWithinMassLimits(template, site, gameVars.GetCraftMassLimit(siteLevel, isPad)));
+                checks.AddTest(new ExperimentalPartsAvailable(manifest));
+                checks.AddTest(new CanAffordLaunchTest(template, Funding.Instance));
+                var launchSite = LaunchSite;
+                checks.AddTest(new FacilityOperational(launchSite, launchSite));
+                checks.AddTest(new NoControlSources(manifest));
+                checks.RunTests();
+            }
+
+            public string LaunchSite { get; private set; }
+            public bool Recover { get; private set; }
+            public string Path { get; private set; }
+
+            readonly ShipTemplate template;
+            readonly public VesselCrewManifest manifest;
+            readonly SpaceCenterFacility facility;
+            readonly float facilityLevel;
+            readonly SpaceCenterFacility site;
+            readonly float siteLevel;
+            readonly bool isPad;
+
+            public bool preFlightChecksComplete;
+            public string error;
+        };
+
+        /// <summary>
         /// Launch a vessel.
         /// </summary>
-        /// <param name="craftDirectory">Name of the directory in the current saves "Ships" directory, that contains the craft file. For example <c>"VAB"</c> or <c>"SPH"</c>.</param>
-        /// <param name="name">Name of the vessel to launch. This is the name of the ".craft" file in the save directory, without the ".craft" file extension.</param>
-        /// <param name="launchSite">Name of the launch site. For example <c>"LaunchPad"</c> or <c>"Runway"</c>.</param>
+        /// <param name="craftDirectory">Name of the directory in the current saves
+        /// "Ships" directory, that contains the craft file.
+        /// For example <c>"VAB"</c> or <c>"SPH"</c>.</param>
+        /// <param name="name">Name of the vessel to launch. This is the name of the ".craft" file
+        /// in the save directory, without the ".craft" file extension.</param>
+        /// <param name="launchSite">Name of the launch site. For example <c>"LaunchPad"</c> or
+        /// <c>"Runway"</c>.</param>
+        /// <param name="recover">If true and there is a vessel on the launch site,
+        /// recover it before launching.</param>
+        /// <remarks>
+        /// Throws an exception if any of the games pre-flight checks fail.
+        /// </remarks>
         [KRPCProcedure]
-        public static void LaunchVessel (string craftDirectory, string name, string launchSite)
+        public static void LaunchVessel (string craftDirectory, string name, string launchSite, bool recover = true)
         {
-            var craft = GetFullCraftDirectory (craftDirectory) + "/" + name + ".craft";
-            var crew = HighLogic.CurrentGame.CrewRoster.DefaultCrewForVessel (ConfigNode.Load (craft));
-            FlightDriver.StartWithNewLaunch (craft, EditorLogic.FlagURL, launchSite, crew);
-            throw new YieldException (new ParameterizedContinuationVoid<int> (WaitForVesselSwitch, 0));
+            var config = new LaunchConfig(craftDirectory, name, launchSite, recover);
+            config.RunPreFlightChecks();
+            throw new YieldException (new ParameterizedContinuationVoid<LaunchConfig> (WaitForVesselPreFlightChecks, config));
+        }
+
+        /// <summary>
+        /// Wait until pre-flight checks for new vessel are complete.
+        /// </summary>
+        /// <param name="config">Config.</param>
+        static void WaitForVesselPreFlightChecks(LaunchConfig config)
+        {
+            if (config.error != null)
+                throw new InvalidOperationException(config.error);
+            if (!config.preFlightChecksComplete)
+                throw new YieldException(new ParameterizedContinuationVoid<LaunchConfig>(WaitForVesselPreFlightChecks, config));
+            // Check launch site clear
+            var vesselsToRecover = ShipConstruction.FindVesselsLandedAt(HighLogic.CurrentGame.flightState, config.LaunchSite);
+            if (vesselsToRecover.Any()) {
+                // Recover existing vessels if the launch site is not clear
+                if (!config.Recover)
+                    throw new InvalidOperationException("Launch site not clear");
+                foreach (var vessel in vesselsToRecover)
+                    ShipConstruction.RecoverVesselFromFlight(vessel, HighLogic.CurrentGame.flightState, true);
+            }
+            // Do the actual launch - passed pre-flight checks, and launch site is clear.
+            FlightDriver.StartWithNewLaunch(config.Path, EditorLogic.FlagURL, config.LaunchSite, config.manifest);
+            throw new YieldException(new ParameterizedContinuationVoid<int>(WaitForVesselSwitch, 0));
         }
 
         /// <summary>
         /// Launch a new vessel from the VAB onto the launchpad.
         /// </summary>
         /// <param name="name">Name of the vessel to launch.</param>
+        /// <param name="recover">If true and there is a vessel on the launch pad,
+        /// recover it before launching.</param>
         /// <remarks>
-        /// This is equivalent to calling <see cref="LaunchVessel"/> with the craft directory set to "VAB" and the launch site set to "LaunchPad".
+        /// This is equivalent to calling <see cref="LaunchVessel"/> with the craft directory
+        /// set to "VAB" and the launch site set to "LaunchPad".
+        /// Throws an exception if any of the games pre-flight checks fail.
         /// </remarks>
         [KRPCProcedure]
-        public static void LaunchVesselFromVAB (string name)
+        public static void LaunchVesselFromVAB (string name, bool recover = true)
         {
-            LaunchVessel ("VAB", name, "LaunchPad");
+            LaunchVessel ("VAB", name, "LaunchPad", recover);
         }
 
         /// <summary>
         /// Launch a new vessel from the SPH onto the runway.
         /// </summary>
         /// <param name="name">Name of the vessel to launch.</param>
+        /// <param name="recover">If true and there is a vessel on the runway,
+        /// recover it before launching.</param>
         /// <remarks>
-        /// This is equivalent to calling <see cref="LaunchVessel"/> with the craft directory set to "SPH" and the launch site set to "Runway".
+        /// This is equivalent to calling <see cref="LaunchVessel"/> with the craft directory
+        /// set to "SPH" and the launch site set to "Runway".
+        /// Throws an exception if any of the games pre-flight checks fail.
         /// </remarks>
         [KRPCProcedure]
-        public static void LaunchVesselFromSPH (string name)
+        public static void LaunchVesselFromSPH (string name, bool recover = true)
         {
-            LaunchVessel ("SPH", name, "Runway");
+            LaunchVessel ("SPH", name, "Runway", recover);
         }
 
         /// <summary>
         /// Save the game with a given name.
-        /// This will create a save file called <c>name.sfs</c> in the folder of the current save game.
+        /// This will create a save file called <c>name.sfs</c> in the folder of the
+        /// current save game.
         /// </summary>
         [KRPCProcedure]
         public static void Save (string name)
@@ -197,7 +368,8 @@ namespace KRPC.SpaceCenter.Services
 
         /// <summary>
         /// Load the game with the given name.
-        /// This will create a load a save file called <c>name.sfs</c> from the folder of the current save game.
+        /// This will create a load a save file called <c>name.sfs</c> from the folder of the
+        /// current save game.
         /// </summary>
         [KRPCProcedure]
         public static void Load (string name)
@@ -236,9 +408,40 @@ namespace KRPC.SpaceCenter.Services
         /// <summary>
         /// An object that can be used to control the camera.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (GameScene = GameScene.Flight)]
         public static Camera Camera {
             get { return new Camera (); }
+        }
+
+        /// <summary>
+        /// Whether the UI is visible.
+        /// </summary>
+        [KRPCProperty (GameScene = GameScene.Flight)]
+        public static bool UIVisible
+        {
+            get { return UIMasterController.Instance.mainCanvas.enabled; }
+            set {
+                var visible = UIVisible;
+                if (value && !visible)
+                    GameEvents.onShowUI.Fire();
+                else if (!value && visible)
+                    GameEvents.onHideUI.Fire();
+            }
+        }
+
+        /// <summary>
+        /// Whether the navball is visible.
+        /// </summary>
+        [KRPCProperty (GameScene = GameScene.Flight)]
+        public static bool Navball
+        {
+            get { return NavBallToggle.Instance.panel.expanded; }
+            set {
+                if (value)
+                    NavBallToggle.Instance.panel.Expand();
+                else
+                    NavBallToggle.Instance.panel.Collapse();
+            }
         }
 
         /// <summary>
@@ -250,28 +453,29 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// The value of the <a href="https://en.wikipedia.org/wiki/Gravitational_constant">gravitational constant</a>
-        /// G in <math>N(m/kg)^2</math>.
+        /// The value of the <a href="https://en.wikipedia.org/wiki/Gravitational_constant">
+        /// gravitational constant</a> G in <math>N(m/kg)^2</math>.
         /// </summary>
         [KRPCProperty]
-        public static float G {
-            get { return 6.673e-11f; }
+        public static double G {
+            get { return 6.67408e-11; }
         }
+
+        // TODO: warp functionality should be available in other game scenes? not just flight?
 
         /// <summary>
         /// The current time warp mode. Returns <see cref="WarpMode.None"/> if time
         /// warp is not active, <see cref="WarpMode.Rails"/> if regular "on-rails" time warp
         /// is active, or <see cref="WarpMode.Physics"/> if physical time warp is active.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (GameScene = GameScene.Flight)]
         public static WarpMode WarpMode {
             get {
                 if (TimeWarp.CurrentRateIndex == 0)
                     return WarpMode.None;
-                else if (TimeWarp.WarpMode == TimeWarp.Modes.HIGH)
+                if (TimeWarp.WarpMode == TimeWarp.Modes.HIGH)
                     return WarpMode.Rails;
-                else
-                    return WarpMode.Physics;
+                return WarpMode.Physics;
             }
         }
 
@@ -281,7 +485,7 @@ namespace KRPC.SpaceCenter.Services
         /// time is passing 10x faster than normal. Returns 1 if time warp is not
         /// active.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (GameScene = GameScene.Flight)]
         public static float WarpRate {
             get { return TimeWarp.CurrentRate; }
         }
@@ -293,7 +497,7 @@ namespace KRPC.SpaceCenter.Services
         /// <see cref="RailsWarpFactor"/>, and in physics time warp, this is equal to
         /// <see cref="PhysicsWarpFactor"/>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (GameScene = GameScene.Flight)]
         public static float WarpFactor {
             get { return TimeWarp.CurrentRateIndex; }
         }
@@ -305,10 +509,10 @@ namespace KRPC.SpaceCenter.Services
         ///
         /// If requested time warp factor cannot be set, it will be set to the next
         /// lowest possible value. For example, if the vessel is too close to a
-        /// planet. See <a href="http://wiki.kerbalspaceprogram.com/wiki/Time_warp">
+        /// planet. See <a href="https://wiki.kerbalspaceprogram.com/wiki/Time_warp">
         /// the KSP wiki</a> for details.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (GameScene = GameScene.Flight)]
         public static int RailsWarpFactor {
             get { return WarpMode == WarpMode.Rails ? TimeWarp.CurrentRateIndex : 0; }
             set { SetWarpFactor (TimeWarp.Modes.HIGH, value.Clamp (0, MaximumRailsWarpFactor)); }
@@ -318,7 +522,7 @@ namespace KRPC.SpaceCenter.Services
         /// The physical time warp rate. A value between 0 and 3 inclusive. 0 means
         /// no time warp. Returns 0 if regular "on-rails" time warp is active.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (GameScene = GameScene.Flight)]
         public static int PhysicsWarpFactor {
             get { return WarpMode == WarpMode.Physics ? TimeWarp.CurrentRateIndex : 0; }
             set { SetWarpFactor (TimeWarp.Modes.LOW, value.Clamp (0, 3)); }
@@ -328,10 +532,11 @@ namespace KRPC.SpaceCenter.Services
         /// Returns <c>true</c> if regular "on-rails" time warp can be used, at the specified warp
         /// <paramref name="factor"/>. The maximum time warp rate is limited by various things,
         /// including how close the active vessel is to a planet. See
-        /// <a href="http://wiki.kerbalspaceprogram.com/wiki/Time_warp">the KSP wiki</a> for details.
+        /// <a href="https://wiki.kerbalspaceprogram.com/wiki/Time_warp">the KSP wiki</a>
+        /// for details.
         /// </summary>
         /// <param name="factor">The warp factor to check.</param>
-        [KRPCProcedure]
+        [KRPCProcedure (GameScene = GameScene.Flight)]
         public static bool CanRailsWarpAt (int factor = 1)
         {
             if (factor == 0)
@@ -344,7 +549,7 @@ namespace KRPC.SpaceCenter.Services
             if (vessel.LandedOrSplashed)
                 return true;
             // Below altitude limit
-            var altitude = vessel.mainBody.GetAltitude (vessel.findWorldCenterOfMass ());
+            var altitude = vessel.mainBody.GetAltitude (vessel.CoM);
             var altitudeLimit = TimeWarp.fetch.GetAltitudeLimit (factor, vessel.mainBody);
             if (altitude < altitudeLimit)
                 return false;
@@ -356,10 +561,11 @@ namespace KRPC.SpaceCenter.Services
 
         /// <summary>
         /// The current maximum regular "on-rails" warp factor that can be set.
-        /// A value between 0 and 7 inclusive.  See
-        /// <a href="http://wiki.kerbalspaceprogram.com/wiki/Time_warp">the KSP wiki</a> for details.
+        /// A value between 0 and 7 inclusive. See
+        /// <a href="https://wiki.kerbalspaceprogram.com/wiki/Time_warp">the KSP wiki</a>
+        /// for details.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (GameScene = GameScene.Flight)]
         public static int MaximumRailsWarpFactor {
             get {
                 for (int i = TimeWarp.fetch.warpRates.Length - 1; i > 1; i--) {
@@ -380,10 +586,11 @@ namespace KRPC.SpaceCenter.Services
         /// time warp, the warp rate is limited by <paramref name="maxPhysicsRate"/>.
         /// </summary>
         /// <param name="ut">The universal time to warp to, in seconds.</param>
-        /// <param name="maxRailsRate">The maximum warp rate in regular "on-rails" time warp.</param>
+        /// <param name="maxRailsRate">The maximum warp rate in regular "on-rails" time warp.
+        /// </param>
         /// <param name="maxPhysicsRate">The maximum warp rate in physical time warp.</param>
         /// <returns>When the time warp is complete.</returns>
-        [KRPCProcedure]
+        [KRPCProcedure (GameScene = GameScene.Flight)]
         public static void WarpTo (double ut, float maxRailsRate = 100000, float maxPhysicsRate = 2)
         {
             float rate = Mathf.Clamp ((float)(ut - Planetarium.GetUniversalTime ()), 1f, maxRailsRate);
@@ -395,9 +602,8 @@ namespace KRPC.SpaceCenter.Services
 
             if (Planetarium.GetUniversalTime () < ut)
                 throw new YieldException (new ParameterizedContinuationVoid<double,float,float> (WarpTo, ut, maxRailsRate, maxPhysicsRate));
-            else if (TimeWarp.CurrentRateIndex > 0) {
+            if (TimeWarp.CurrentRateIndex > 0)
                 SetWarpFactor (TimeWarp.Modes.HIGH, 0);
-            }
         }
 
         static void SetWarpMode (TimeWarp.Modes mode)
@@ -501,12 +707,14 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Converts a position vector from one reference frame to another.
+        /// Converts a position from one reference frame to another.
         /// </summary>
-        /// <param name="position">Position vector in reference frame <paramref name="from"/>.</param>
-        /// <param name="from">The reference frame that the position vector is in.</param>
-        /// <param name="to">The reference frame to covert the position vector to.</param>
-        /// <returns>The corresponding position vector in reference frame <paramref name="to"/>.</returns>
+        /// <param name="position">Position, as a vector, in reference frame
+        /// <paramref name="from"/>.</param>
+        /// <param name="from">The reference frame that the position is in.</param>
+        /// <param name="to">The reference frame to covert the position to.</param>
+        /// <returns>The corresponding position, as a vector, in reference frame
+        /// <paramref name="to"/>.</returns>
         [KRPCProcedure]
         public static Tuple3 TransformPosition (Tuple3 position, ReferenceFrame from, ReferenceFrame to)
         {
@@ -515,12 +723,14 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Converts a direction vector from one reference frame to another.
+        /// Converts a direction from one reference frame to another.
         /// </summary>
-        /// <param name="direction">Direction vector in reference frame <paramref name="from"/>.</param>
-        /// <param name="from">The reference frame that the direction vector is in.</param>
-        /// <param name="to">The reference frame to covert the direction vector to.</param>
-        /// <returns>The corresponding direction vector in reference frame <paramref name="to"/>.</returns>
+        /// <param name="direction">Direction, as a vector, in reference frame
+        /// <paramref name="from"/>. </param>
+        /// <param name="from">The reference frame that the direction is in.</param>
+        /// <param name="to">The reference frame to covert the direction to.</param>
+        /// <returns>The corresponding direction, as a vector, in reference frame
+        /// <paramref name="to"/>.</returns>
         [KRPCProcedure]
         public static Tuple3 TransformDirection (Tuple3 direction, ReferenceFrame from, ReferenceFrame to)
         {
@@ -531,10 +741,12 @@ namespace KRPC.SpaceCenter.Services
         /// <summary>
         /// Converts a rotation from one reference frame to another.
         /// </summary>
-        /// <param name="rotation">Rotation in reference frame <paramref name="from"/>.</param>
+        /// <param name="rotation">Rotation, as a quaternion of the form <math>(x, y, z, w)</math>,
+        /// in reference frame <paramref name="from"/>.</param>
         /// <param name="from">The reference frame that the rotation is in.</param>
-        /// <param name="to">The corresponding rotation in reference frame <paramref name="to"/>.</param>
-        /// <returns>The corresponding rotation in reference frame <paramref name="to"/>.</returns>
+        /// <param name="to">The reference frame to covert the rotation to.</param>
+        /// <returns>The corresponding rotation, as a quaternion of the form
+        /// <math>(x, y, z, w)</math>, in reference frame <paramref name="to"/>.</returns>
         [KRPCProcedure]
         public static Tuple4 TransformRotation (Tuple4 rotation, ReferenceFrame from, ReferenceFrame to)
         {
@@ -543,15 +755,19 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Converts a velocity vector (acting at the specified position vector) from one
-        /// reference frame to another. The position vector is required to take the
-        /// relative angular velocity of the reference frames into account.
+        /// Converts a velocity (acting at the specified position) from one reference frame
+        /// to another. The position is required to take the relative angular velocity of the
+        /// reference frames into account.
         /// </summary>
-        /// <param name="position">Position vector in reference frame <paramref name="from"/>.</param>
-        /// <param name="velocity">Velocity vector in reference frame <paramref name="from"/>.</param>
-        /// <param name="from">The reference frame that the position and velocity vectors are in.</param>
-        /// <param name="to">The reference frame to covert the velocity vector to.</param>
-        /// <returns>The corresponding velocity in reference frame <paramref name="to"/>.</returns>
+        /// <param name="position">Position, as a vector, in reference frame
+        /// <paramref name="from"/>.</param>
+        /// <param name="velocity">Velocity, as a vector that points in the direction of travel and
+        /// whose magnitude is the speed in meters per second, in reference frame
+        /// <paramref name="from"/>.</param>
+        /// <param name="from">The reference frame that the position and velocity are in.</param>
+        /// <param name="to">The reference frame to covert the velocity to.</param>
+        /// <returns>The corresponding velocity, as a vector, in reference frame
+        /// <paramref name="to"/>.</returns>
         [KRPCProcedure]
         public static Tuple3 TransformVelocity (Tuple3 position, Tuple3 velocity, ReferenceFrame from, ReferenceFrame to)
         {
@@ -561,20 +777,65 @@ namespace KRPC.SpaceCenter.Services
             return to.VelocityFromWorldSpace (worldPosition, worldVelocity).ToTuple ();
         }
 
+        static void CheckReferenceFrames (ReferenceFrame from, ReferenceFrame to)
+        {
+            if (ReferenceEquals (from, null))
+                throw new ArgumentNullException (nameof (from));
+            if (ReferenceEquals (to, null))
+                throw new ArgumentNullException (nameof (to));
+        }
+
         /// <summary>
-        /// Whether <a href="http://forum.kerbalspaceprogram.com/index.php?/topic/19321-105-ferram-aerospace-research-v01557-johnson-21816/">Ferram Aerospace Research</a> is installed.
+        /// Cast a ray from a given position in a given direction, and return the distance to the hit point.
+        /// If no hit occurs, returns infinity.
+        /// </summary>
+        /// <param name="position">Position, as a vector, of the origin of the ray.</param>
+        /// <param name="direction">Direction of the ray, as a unit vector.</param>
+        /// <param name="referenceFrame">The reference frame that the position and direction are in.</param>
+        /// <returns>The distance to the hit, in meters, or infinity if there was no hit.</returns>
+        [KRPCProcedure]
+        [SuppressMessage ("Gendarme.Rules.Smells", "AvoidCodeDuplicatedInSameClassRule")]
+        public static double RaycastDistance (Tuple3 position, Tuple3 direction, ReferenceFrame referenceFrame)
+        {
+            if (ReferenceEquals (referenceFrame, null))
+                throw new ArgumentNullException (nameof (referenceFrame));
+            var worldPosition = referenceFrame.PositionToWorldSpace (position.ToVector ());
+            var worldDirection = referenceFrame.DirectionToWorldSpace (direction.ToVector ());
+            RaycastHit hitInfo;
+            bool hit = Physics.Raycast(worldPosition, worldDirection, out hitInfo);
+            return hit ? hitInfo.distance : Double.PositiveInfinity;
+        }
+
+        /// <summary>
+        /// Cast a ray from a given position in a given direction, and return the part that it hits.
+        /// If no hit occurs, returns <c>null</c>.
+        /// </summary>
+        /// <param name="position">Position, as a vector, of the origin of the ray.</param>
+        /// <param name="direction">Direction of the ray, as a unit vector.</param>
+        /// <param name="referenceFrame">The reference frame that the position and direction are in.</param>
+        /// <returns>The part that was hit or <c>null</c> if there was no hit.</returns>
+        [KRPCProcedure (Nullable = true, GameScene = GameScene.Flight)]
+        [SuppressMessage ("Gendarme.Rules.Smells", "AvoidCodeDuplicatedInSameClassRule")]
+        public static Parts.Part RaycastPart (Tuple3 position, Tuple3 direction, ReferenceFrame referenceFrame)
+        {
+            if (ReferenceEquals (referenceFrame, null))
+                throw new ArgumentNullException (nameof (referenceFrame));
+            var worldPosition = referenceFrame.PositionToWorldSpace (position.ToVector ());
+            var worldDirection = referenceFrame.DirectionToWorldSpace (direction.ToVector ());
+            RaycastHit hitInfo;
+            bool hit = Physics.Raycast(worldPosition, worldDirection, out hitInfo);
+            if (!hit)
+                return null;
+            var part = hitInfo.collider.gameObject.GetComponentInParent<global::Part>();
+            return part == null ? null : new Parts.Part (part);
+        }
+
+        /// <summary>
+        /// Whether <a href="https://forum.kerbalspaceprogram.com/index.php?/topic/19321-130-ferram-aerospace-research-v0159-liebe-82117/">Ferram Aerospace Research</a> is installed.
         /// </summary>
         [KRPCProperty]
         public static bool FARAvailable {
             get { return ExternalAPI.FAR.IsAvailable; }
-        }
-
-        static void CheckReferenceFrames (ReferenceFrame from, ReferenceFrame to)
-        {
-            if (ReferenceEquals (from, null))
-                throw new ArgumentNullException ("from");
-            if (ReferenceEquals (to, null))
-                throw new ArgumentNullException ("to");
         }
     }
 }

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using KRPC.Server;
 using KRPC.Service;
 using KRPC.Service.Messages;
 using KRPC.Utils;
@@ -13,11 +12,17 @@ namespace KRPC.Server
     /// A kRPC server.
     /// </summary>
     [SuppressMessage ("Gendarme.Rules.Correctness", "DeclareEventsExplicitlyRule")]
-    sealed class Server : IServer
+    public sealed class Server : IServer
     {
+        internal Guid Id { get; private set; }
+
+        internal Protocol Protocol { get; private set; }
+
+        internal string Name { get; set; }
+
         internal IServer<Request,Response> RPCServer { get; private set; }
 
-        internal IServer<NoMessage,StreamMessage> StreamServer { get; private set; }
+        internal IServer<NoMessage,StreamUpdate> StreamServer { get; private set; }
 
         /// <summary>
         /// Event triggered when the server starts
@@ -40,19 +45,15 @@ namespace KRPC.Server
         public event EventHandler<ClientConnectedEventArgs> OnClientConnected;
 
         /// <summary>
-        /// Event triggered when a client performs some activity
-        /// </summary>
-        public event EventHandler<ClientActivityEventArgs> OnClientActivity;
-
-        /// <summary>
         /// Event triggered when a client has disconnected
         /// </summary>
         public event EventHandler<ClientDisconnectedEventArgs> OnClientDisconnected;
 
-        internal Server (IServer<Request,Response> rpcServer, IServer<NoMessage,StreamMessage> streamServer)
+        internal Server (Guid id, Protocol protocol, string name, IServer<Request,Response> rpcServer, IServer<NoMessage,StreamUpdate> streamServer)
         {
-            Core.Instance.Add (this);
-
+            Id = id;
+            Protocol = protocol;
+            Name = name;
             RPCServer = rpcServer;
             StreamServer = streamServer;
 
@@ -73,10 +74,13 @@ namespace KRPC.Server
 
             // Validate stream client identifiers
             StreamServer.OnClientRequestingConnection += (s, e) => {
-                if (RPCServer.Clients.Any (c => c.Guid == e.Client.Guid))
+                if (RPCServer.Clients.Any (c => c.Guid == e.Client.Guid)) {
+                    Logger.WriteLine ("Accepting stream server connection (" + e.Client.Address + ")", Logger.Severity.Debug);
                     e.Request.Allow ();
-                else
+                } else {
+                    Logger.WriteLine ("Denying stream server connection, invalid client id (" + e.Client.Address + ")", Logger.Severity.Debug);
                     e.Request.Deny ();
+                }
             };
         }
 
@@ -113,7 +117,11 @@ namespace KRPC.Server
         /// The servers address.
         /// </summary>
         public string Address {
-            get { return RPCServer.Address; }
+            get {
+                return
+                "RPC server: " + RPCServer.Address + Environment.NewLine +
+                "Stream server: " + StreamServer.Address;
+            }
         }
 
         /// <summary>

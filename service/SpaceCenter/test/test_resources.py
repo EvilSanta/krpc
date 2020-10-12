@@ -1,6 +1,6 @@
 import unittest
 import krpctest
-import krpc
+
 
 class ResourcesTest(object):
 
@@ -11,6 +11,7 @@ class ResourcesTest(object):
         'SolidFuel':      7.5
     }
 
+
 class TestResources(krpctest.TestCase, ResourcesTest):
 
     @classmethod
@@ -19,12 +20,19 @@ class TestResources(krpctest.TestCase, ResourcesTest):
         if cls.connect().space_center.active_vessel.name != 'Resources':
             cls.launch_vessel_from_vab('Resources')
         cls.vessel = cls.connect().space_center.active_vessel
-        cls.num_stages = len(cls.expected.keys())
+        cls.num_stages = len(cls.expected.keys())-1
 
     expected = {
-        0: {
+        -1: {
             'ElectricCharge': (150, 150),
             'MonoPropellant': (15, 30),
+            'LiquidFuel':     (0, 0),
+            'Oxidizer':       (0, 0),
+            'SolidFuel':      (0, 0)
+        },
+        0: {
+            'ElectricCharge': (0, 0),
+            'MonoPropellant': (0, 0),
             'LiquidFuel':     (0, 0),
             'Oxidizer':       (0, 0),
             'SolidFuel':      (0, 0)
@@ -32,56 +40,59 @@ class TestResources(krpctest.TestCase, ResourcesTest):
         1: {
             'ElectricCharge': (0, 0),
             'MonoPropellant': (0, 0),
-            'LiquidFuel':     (0, 0),
-            'Oxidizer':       (0, 0),
+            'LiquidFuel':     (720, 1440),
+            'Oxidizer':       (1000, 1760),
             'SolidFuel':      (0, 0)
         },
         2: {
             'ElectricCharge': (0, 0),
             'MonoPropellant': (0, 0),
-            'LiquidFuel':     (720, 1440),
-            'Oxidizer':       (1000, 1760),
-            'SolidFuel':      (0, 0)
-        },
-        3: {
-            'ElectricCharge': (0, 0),
-            'MonoPropellant': (0, 0),
             'LiquidFuel':     (0, 0),
             'Oxidizer':       (0, 0),
             'SolidFuel':      (0, 0)
         },
-        4: {
+        3: {
             'ElectricCharge': (0, 0),
             'MonoPropellant': (0, 0),
             'LiquidFuel':     (720+720+300, 1440+1440+720),
             'Oxidizer':       (1000+1000+400, 1760+1760+880),
             'SolidFuel':      (13, 15)
         },
-        5: {
+        4: {
             'ElectricCharge': (0, 0),
             'MonoPropellant': (0, 0),
             'LiquidFuel':     (0, 0),
             'Oxidizer':       (0, 0),
             'SolidFuel':      (300*4 + 3*8, 850*4 + 8*8)
         },
+        5: {
+            'ElectricCharge': (0, 0),
+            'MonoPropellant': (0, 0),
+            'LiquidFuel':     (0, 0),
+            'Oxidizer':       (0, 0),
+            'SolidFuel':      (0, 0)
+        }
     }
 
     expected_names = {
-        0: set(['ElectricCharge', 'MonoPropellant']),
-        1: set(),
-        2: set(['LiquidFuel', 'Oxidizer', 'ElectricCharge']),
-        3: set(),
-        4: set(['LiquidFuel', 'Oxidizer', 'ElectricCharge', 'SolidFuel']),
-        5: set(['SolidFuel'])
+        -1: set(['ElectricCharge', 'MonoPropellant']),
+        0: set(),
+        1: set(['LiquidFuel', 'Oxidizer', 'ElectricCharge']),
+        2: set(),
+        3: set(['LiquidFuel', 'Oxidizer', 'ElectricCharge', 'SolidFuel']),
+        4: set(['SolidFuel']),
+        5: set()
     }
 
     expected_names_cumulative = {
-        0: set(['ElectricCharge', 'MonoPropellant']),
-        1: set(['ElectricCharge', 'MonoPropellant']),
-        2: set(['ElectricCharge', 'MonoPropellant', 'LiquidFuel', 'Oxidizer']),
-        3: set(['ElectricCharge', 'MonoPropellant', 'LiquidFuel', 'Oxidizer']),
-        4: set(['ElectricCharge', 'MonoPropellant', 'LiquidFuel', 'Oxidizer', 'SolidFuel']),
-        5: set(['ElectricCharge', 'MonoPropellant', 'LiquidFuel', 'Oxidizer', 'SolidFuel'])
+        -1: set(['ElectricCharge', 'MonoPropellant', 'SolidFuel',
+                 'LiquidFuel', 'Oxidizer']),
+        0: set(['ElectricCharge', 'SolidFuel', 'LiquidFuel', 'Oxidizer']),
+        1: set(['ElectricCharge', 'SolidFuel', 'LiquidFuel', 'Oxidizer']),
+        2: set(['ElectricCharge', 'SolidFuel', 'LiquidFuel', 'Oxidizer']),
+        3: set(['ElectricCharge', 'LiquidFuel', 'Oxidizer', 'SolidFuel']),
+        4: set(['SolidFuel']),
+        5: set()
     }
 
     def test_equality(self):
@@ -89,55 +100,74 @@ class TestResources(krpctest.TestCase, ResourcesTest):
 
     def test_names(self):
         self.assertEqual(
-            set(['ElectricCharge', 'MonoPropellant', 'LiquidFuel', 'Oxidizer', 'SolidFuel']),
+            set(['ElectricCharge', 'MonoPropellant', 'LiquidFuel',
+                 'Oxidizer', 'SolidFuel']),
             set(self.vessel.resources.names))
 
     def test_per_stage_amounts(self):
-        for stage in range(self.num_stages):
-            resources = self.vessel.resources_in_decouple_stage(stage=stage, cumulative=False)
+        for stage in range(-1, self.num_stages):
+            resources = self.vessel.resources_in_decouple_stage(
+                stage=stage, cumulative=False)
             self.assertEqual(self.expected_names[stage], set(resources.names))
             for name in resources.names:
                 self.assertTrue(resources.has_resource(name))
-                self.assertAlmostEqual(self.expected[stage][name][0], resources.amount(name), delta=1)
-                self.assertAlmostEqual(self.expected[stage][name][1], resources.max(name), delta=1)
+                self.assertAlmostEqual(
+                    self.expected[stage][name][0],
+                    resources.amount(name), delta=1)
+                self.assertAlmostEqual(
+                    self.expected[stage][name][1],
+                    resources.max(name), delta=1)
 
     def test_per_stage_amounts_cumulative(self):
         for stage in range(self.num_stages):
             resources = self.vessel.resources_in_decouple_stage(stage=stage)
-            self.assertEqual(self.expected_names_cumulative[stage], set(resources.names))
+            self.assertEqual(
+                self.expected_names_cumulative[stage], set(resources.names))
             for name in resources.names:
-                expected_amount = sum(self.expected[x][name][0] for x in range(stage+1))
-                expected_max = sum(self.expected[x][name][1] for x in range(stage+1))
-                self.assertAlmostEqual(expected_amount, resources.amount(name), delta=1)
-                self.assertAlmostEqual(expected_max, resources.max(name), delta=1)
+                expected_amount = sum(self.expected[x][name][0]
+                                      for x in range(stage, self.num_stages-1))
+                expected_max = sum(self.expected[x][name][1]
+                                   for x in range(stage, self.num_stages-1))
+                self.assertAlmostEqual(
+                    expected_amount, resources.amount(name), delta=1)
+                self.assertAlmostEqual(
+                    expected_max, resources.max(name), delta=1)
 
     def test_total_amounts(self):
         resources = self.vessel.resources
         self.assertEqual(
-            set(['SolidFuel', 'ElectricCharge', 'MonoPropellant', 'LiquidFuel', 'Oxidizer']),
+            set(['SolidFuel', 'ElectricCharge', 'MonoPropellant',
+                 'LiquidFuel', 'Oxidizer']),
             set(resources.names))
         for name in resources.names:
-            expected_amount = sum(self.expected[stage][name][0] for stage in range(self.num_stages))
-            expected_max = sum(self.expected[stage][name][1] for stage in range(self.num_stages))
-            self.assertAlmostEqual(expected_amount, resources.amount(name), delta=1)
-            self.assertAlmostEqual(expected_max, resources.max(name), delta=1)
+            expected_amount = sum(self.expected[stage][name][0]
+                                  for stage in range(-1, self.num_stages))
+            expected_max = sum(self.expected[stage][name][1]
+                               for stage in range(-1, self.num_stages))
+            self.assertAlmostEqual(
+                expected_amount, resources.amount(name), delta=1)
+            self.assertAlmostEqual(
+                expected_max, resources.max(name), delta=1)
 
     def test_vessel_mass(self):
         mass = self.vessel.dry_mass
         self.assertAlmostEqual(28795, mass, places=2)
         resources = self.vessel.resources
         self.assertEqual(
-            set(['SolidFuel', 'ElectricCharge', 'MonoPropellant', 'LiquidFuel', 'Oxidizer']),
+            set(['SolidFuel', 'ElectricCharge', 'MonoPropellant',
+                 'LiquidFuel', 'Oxidizer']),
             set(resources.names))
         for name in resources.names:
-            amount = sum(self.expected[stage][name][0] for stage in range(self.num_stages))
+            amount = sum(self.expected[stage][name][0]
+                         for stage in range(-1, self.num_stages))
             if name in self.density:
                 mass += amount * self.density[name]
         self.assertAlmostEqual(mass, self.vessel.mass, places=2)
 
     def test_part_resources(self):
         mode = self.connect().space_center.ResourceFlowMode
-        resources = next(iter(self.vessel.parts.with_title('BACC "Thumper" Solid Fuel Booster'))).resources
+        resources = next(iter(self.vessel.parts.with_title(
+            'BACC "Thumper" Solid Fuel Booster'))).resources
         self.assertEqual(set(['SolidFuel']), set(resources.names))
         self.assertTrue(resources.has_resource('SolidFuel'))
         self.assertFalse(resources.has_resource('LiquidFuel'))
@@ -156,7 +186,8 @@ class TestResources(krpctest.TestCase, ResourcesTest):
         self.assertEqual(mode.none, r.flow_mode)
         self.assertTrue(r.enabled)
 
-        resources = next(iter(self.vessel.parts.with_title('Rockomax X200-16 Fuel Tank'))).resources
+        resources = next(iter(self.vessel.parts.with_title(
+            'Rockomax X200-16 Fuel Tank'))).resources
         self.assertEqual(set(['LiquidFuel', 'Oxidizer']), set(resources.names))
         self.assertTrue(resources.has_resource('LiquidFuel'))
         self.assertTrue(resources.has_resource('Oxidizer'))
@@ -189,6 +220,7 @@ class TestResources(krpctest.TestCase, ResourcesTest):
         self.assertEqual(1, len(part_resources))
         self.assertEqual('LiquidFuel', part_resources[0].name)
 
+
 class TestResourcesStaticMethods(krpctest.TestCase, ResourcesTest):
 
     @classmethod
@@ -198,20 +230,30 @@ class TestResourcesStaticMethods(krpctest.TestCase, ResourcesTest):
     def test_density(self):
         for name, expected in self.density.items():
             self.assertEqual(expected, self.resources.density(name))
-        self.assertRaises(krpc.error.RPCError, self.resources.density, 'Foo')
+        self.assertRaises(ValueError, self.resources.density, 'Foo')
 
     def test_flow_mode(self):
         mode = self.connect().space_center.ResourceFlowMode
-        self.assertEqual(mode.vessel, self.resources.flow_mode('ElectricCharge'))
-        self.assertEqual(mode.vessel, self.resources.flow_mode('IntakeAir'))
-        self.assertEqual(mode.stage, self.resources.flow_mode('MonoPropellant'))
-        self.assertEqual(mode.stage, self.resources.flow_mode('XenonGas'))
-        self.assertEqual(mode.adjacent, self.resources.flow_mode('LiquidFuel'))
-        self.assertEqual(mode.adjacent, self.resources.flow_mode('Oxidizer'))
-        self.assertEqual(mode.none, self.resources.flow_mode('SolidFuel'))
-        self.assertEqual(mode.vessel, self.resources.flow_mode('Ore'))
-        self.assertEqual(mode.none, self.resources.flow_mode('Ablator'))
-        self.assertRaises(krpc.error.RPCError, self.resources.flow_mode, 'Foo')
+        self.assertEqual(
+            mode.stage, self.resources.flow_mode('ElectricCharge'))
+        self.assertEqual(
+            mode.vessel, self.resources.flow_mode('IntakeAir'))
+        self.assertEqual(
+            mode.stage, self.resources.flow_mode('MonoPropellant'))
+        self.assertEqual(
+            mode.stage, self.resources.flow_mode('XenonGas'))
+        self.assertEqual(
+            mode.adjacent, self.resources.flow_mode('LiquidFuel'))
+        self.assertEqual(
+            mode.adjacent, self.resources.flow_mode('Oxidizer'))
+        self.assertEqual(
+            mode.none, self.resources.flow_mode('SolidFuel'))
+        self.assertEqual(
+            mode.vessel, self.resources.flow_mode('Ore'))
+        self.assertEqual(
+            mode.none, self.resources.flow_mode('Ablator'))
+        self.assertRaises(ValueError, self.resources.flow_mode, 'Foo')
+
 
 if __name__ == '__main__':
     unittest.main()

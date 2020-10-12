@@ -3,7 +3,37 @@
 Pitch, Heading and Roll
 =======================
 
-The following example calculates the pitch, heading and rolls angles of the
-active vessel once per second:
+This example calculates the pitch, heading and rolls angles of the active vessel
+once per second.
 
-.. literalinclude:: /scripts/PitchHeadingRoll.py
+.. tabs::
+
+   .. tab:: C#
+
+      .. literalinclude:: /scripts/tutorials/pitch-heading-roll/PitchHeadingRoll.cs
+         :language: csharp
+
+   .. tab:: C++
+
+      .. literalinclude:: /scripts/tutorials/pitch-heading-roll/PitchHeadingRoll.cpp
+         :language: cpp
+
+   .. tab:: C
+
+      .. literalinclude:: /scripts/tutorials/pitch-heading-roll/PitchHeadingRoll.c
+         :language: c
+
+   .. tab:: Java
+
+      .. literalinclude:: /scripts/tutorials/pitch-heading-roll/PitchHeadingRoll.java
+         :language: java
+
+   .. tab:: Lua
+
+      .. literalinclude:: /scripts/tutorials/pitch-heading-roll/PitchHeadingRoll.lua
+         :language: lua
+
+   .. tab:: Python
+
+      .. literalinclude:: /scripts/tutorials/pitch-heading-roll/PitchHeadingRoll.py
+         :language: python

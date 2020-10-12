@@ -132,8 +132,16 @@
 
 {{ gendoc(value.documentation) | indent(width=6) }}
 
-{% if hasdoc(x.documentation, './remarks') %}{{ remarks(x.documentation) | indent(width=6) }}{% endif %}
+{% if hasdoc(value.documentation, './remarks') %}{{ remarks(value.documentation) | indent(width=6) }}{% endif %}
 {% endfor %}
+{% endmacro %}
+
+{% macro exception(x) %}{{ mark_documented(x) }}
+.. class:: {{ x.name }}
+
+{{ gendoc(x.documentation) | indent }}
+
+{% if hasdoc(x.documentation, './remarks') %}{{ remarks(x.documentation) | indent }}{% endif %}
 {% endmacro %}
 
 {% macro parameters(x) %}
@@ -144,7 +152,7 @@
 {% if not x.has_default_value -%}
 {{ x.name | snakecase }}
 {%- else -%}
-[{{ x.name | snakecase }} = {{ x.default_value }}]
+[{{ x.name | snakecase }} = {{ domain.default_value(x.default_value, x.type) }}]
 {%- endif %}
 {% endmacro %}
 

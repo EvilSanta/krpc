@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using KRPC.Server;
-using KRPC.Server.TCP;
 using KRPC.UI;
 using KRPC.Utils;
 using KSP.UI.Screens;
@@ -11,17 +10,13 @@ namespace KRPC
     /// <summary>
     /// Main KRPC addon. Contains the kRPC core, config and UI.
     /// </summary>
-    [KSPAddonImproved (KSPAddonImproved.Startup.All, false)]
+    [KSPAddon (KSPAddon.Startup.AllGameScenes, false)]
     [SuppressMessage ("Gendarme.Rules.Correctness", "DeclareEventsExplicitlyRule")]
-    sealed public class Addon : MonoBehaviour
+    public sealed class Addon : MonoBehaviour
     {
-        static Configuration config;
+        // TODO: clean this up
+        internal static ConfigurationFile config;
         static Core core;
-        static Server.Server server;
-        static TCPServer rpcTcpServer;
-        static TCPServer streamTcpServer;
-        static KRPC.Server.ProtocolBuffers.RPCServer rpcServer;
-        static KRPC.Server.ProtocolBuffers.StreamServer streamServer;
         static Texture textureOnline;
         static Texture textureOffline;
 
@@ -31,29 +26,19 @@ namespace KRPC
         ClientConnectingDialog clientConnectingDialog;
         ClientDisconnectDialog clientDisconnectDialog;
 
+        /// <summary>
+        /// The instance of the addon
+        /// </summary>
+        public static Addon Instance { get; private set; }
+
         static void Init ()
         {
-            if (config != null)
-                return;
-
-            // Load config
-            config = new Configuration ("PluginData/settings.cfg");
-            config.Load ();
-
-            // Set up core
-            core = Core.Instance;
-            core.OneRPCPerUpdate = config.OneRPCPerUpdate;
-            core.MaxTimePerUpdate = config.MaxTimePerUpdate;
-            core.AdaptiveRateControl = config.AdaptiveRateControl;
-            core.BlockingRecv = config.BlockingRecv;
-            core.RecvTimeout = config.RecvTimeout;
-
-            // Set up server
-            rpcTcpServer = new TCPServer ("RPCServer", config.Address, config.RPCPort);
-            streamTcpServer = new TCPServer ("StreamServer", config.Address, config.StreamPort);
-            rpcServer = new KRPC.Server.ProtocolBuffers.RPCServer (rpcTcpServer);
-            streamServer = new KRPC.Server.ProtocolBuffers.StreamServer (streamTcpServer);
-            server = new Server.Server (rpcServer, streamServer);
+            if (core == null) {
+                core = Core.Instance;
+                config = ConfigurationFile.Instance;
+                foreach (var server in config.Configuration.Servers)
+                    core.Add (server.Create ());
+            }
         }
 
         /// <summary>
@@ -66,24 +51,26 @@ namespace KRPC
                 return;
 
             Init ();
+            Instance = this;
 
-            Service.CallContext.SetGameScene (KSPAddonImproved.CurrentGameScene.ToGameScene ());
-            Logger.WriteLine ("Game scene switched to " + Service.CallContext.GameScene);
-            core.GetUniversalTime = Planetarium.GetUniversalTime;
+            var gameScene = GameScenesExtensions.CurrentGameScene();
+            Service.CallContext.SetGameScene (gameScene);
+            Utils.Logger.WriteLine ("Game scene switched to " + gameScene);
 
             // If a game is not loaded, ensure the server is stopped and then exit
-            if (KSPAddonImproved.CurrentGameScene != GameScenes.EDITOR &&
-                KSPAddonImproved.CurrentGameScene != GameScenes.FLIGHT &&
-                KSPAddonImproved.CurrentGameScene != GameScenes.SPACECENTER &&
-                KSPAddonImproved.CurrentGameScene != GameScenes.TRACKSTATION) {
-                server.Stop ();
+            if (gameScene == Service.GameScene.None) {
+                core.StopAll ();
                 return;
             }
 
             // Auto-start the server, if required
-            if (config.AutoStartServer && !server.Running) {
-                Logger.WriteLine ("Auto-starting server");
-                StartServer ();
+            if (config.Configuration.AutoStartServers) {
+                Utils.Logger.WriteLine ("Auto-starting server");
+                try {
+                    core.StartAll ();
+                } catch (ServerException e) {
+                    Utils.Logger.WriteLine ("Failed to auto-start servers:" + e, Utils.Logger.Severity.Error);
+                }
             }
 
             // (Re)create the UI
@@ -102,15 +89,13 @@ namespace KRPC
             // Info window
             infoWindow = gameObject.AddComponent<InfoWindow> ();
             infoWindow.Closable = true;
-            infoWindow.Visible = config.InfoWindowVisible;
-            infoWindow.Position = config.InfoWindowPosition;
+            infoWindow.Visible = config.Configuration.InfoWindowVisible;
+            infoWindow.Position = config.Configuration.InfoWindowPosition.ToRect ();
 
             // Main window
             mainWindow = gameObject.AddComponent<MainWindow> ();
-            mainWindow.Config = config;
-            mainWindow.Server = server;
-            mainWindow.Visible = config.MainWindowVisible;
-            mainWindow.Position = config.MainWindowPosition;
+            mainWindow.Visible = config.Configuration.MainWindowVisible;
+            mainWindow.Position = config.Configuration.MainWindowPosition.ToRect ();
             mainWindow.ClientDisconnectDialog = clientDisconnectDialog;
             mainWindow.InfoWindow = infoWindow;
 
@@ -126,68 +111,93 @@ namespace KRPC
             textureOffline = GameDatabase.Instance.GetTexture ("kRPC/icons/applauncher-offline", false);
             GameEvents.onGUIApplicationLauncherReady.Add (OnGUIApplicationLauncherReady);
             GameEvents.onGUIApplicationLauncherDestroyed.Add (OnGUIApplicationLauncherDestroyed);
-            server.OnStarted += (s, e) => {
-                if (applauncherButton != null) {
-                    applauncherButton.SetTexture (textureOnline);
-                }
+            core.OnServerStarted += (s, e) => {
+                if (applauncherButton != null)
+                    applauncherButton.SetTexture (core.AnyRunning ? textureOnline : textureOffline);
             };
-            server.OnStopped += (s, e) => {
-                if (applauncherButton != null) {
-                    applauncherButton.SetTexture (textureOffline);
-                }
+            core.OnServerStopped += (s, e) => {
+                if (applauncherButton != null)
+                    applauncherButton.SetTexture (core.AnyRunning ? textureOnline : textureOffline);
             };
         }
 
         void InitEvents ()
         {
             // Main window events
-            mainWindow.OnStartServerPressed += (s, e) => StartServer ();
+            mainWindow.OnStartServerPressed += (s, e) => {
+                try {
+                    e.Server.Start ();
+                } catch (ServerException exn) {
+                    Utils.Logger.WriteLine ("Server exception: " + exn.Message, Utils.Logger.Severity.Error);
+                    mainWindow.Errors.Add (exn.Message);
+                }
+            };
             mainWindow.OnStopServerPressed += (s, e) => {
-                server.Stop ();
+                e.Server.Stop ();
                 clientConnectingDialog.Close ();
             };
             mainWindow.OnHide += (s, e) => {
                 config.Load ();
-                config.MainWindowVisible = false;
+                config.Configuration.MainWindowVisible = false;
                 config.Save ();
             };
             mainWindow.OnShow += (s, e) => {
                 config.Load ();
-                config.MainWindowVisible = true;
+                config.Configuration.MainWindowVisible = true;
                 config.Save ();
             };
+            mainWindow.OnStartMoving += (s, e) => {
+                config.Load();
+            };
             mainWindow.OnMoved += (s, e) => {
-                config.Load ();
                 var window = s as MainWindow;
-                config.MainWindowPosition = window.Position;
-                config.Save ();
+                config.Configuration.MainWindowPosition = window.Position.ToTuple ();
+            };
+            mainWindow.OnFinishMoving += (s, e) => {
+                config.Save();
             };
 
             // Info window events
             infoWindow.OnHide += (s, e) => {
                 config.Load ();
-                config.InfoWindowVisible = false;
+                config.Configuration.InfoWindowVisible = false;
                 config.Save ();
             };
             infoWindow.OnShow += (s, e) => {
                 config.Load ();
-                config.InfoWindowVisible = true;
+                config.Configuration.InfoWindowVisible = true;
                 config.Save ();
             };
+            infoWindow.OnStartMoving += (s, e) => {
+                config.Load();
+            };
             infoWindow.OnMoved += (s, e) => {
-                config.Load ();
                 var window = s as InfoWindow;
-                config.InfoWindowPosition = window.Position;
-                config.Save ();
+                config.Configuration.InfoWindowPosition = window.Position.ToTuple ();
+            };
+            infoWindow.OnFinishMoving += (s, e) => {
+                config.Save();
             };
 
             // Server events
-            server.OnClientRequestingConnection += (s, e) => {
-                if (config.AutoAcceptConnections)
+            core.OnClientRequestingConnection += (s, e) => {
+                if (config.Configuration.AutoAcceptConnections) {
+                    Utils.Logger.WriteLine ("Auto-accepting client connection (" + e.Client.Address + ")");
                     e.Request.Allow ();
-                else
+                } else {
+                    Utils.Logger.WriteLine ("Asking player to accept client connection (" + e.Client.Address + ")");
                     clientConnectingDialog.OnClientRequestingConnection (s, e);
+                }
             };
+
+            // KSP events
+            IsPaused = false;
+            GameEvents.onGamePause.Add (() => {
+                IsPaused = true;
+            });
+            GameEvents.onGameUnpause.Add (() => {
+                IsPaused = false;
+            });
         }
 
         void OnGUIApplicationLauncherReady ()
@@ -197,32 +207,13 @@ namespace KRPC
                 () => mainWindow.Visible = !mainWindow.Visible,
                 null, null, null, null,
                 ApplicationLauncher.AppScenes.ALWAYS,
-                server.Running ? textureOnline : textureOffline);
+                core.AnyRunning ? textureOnline : textureOffline);
         }
 
         void OnGUIApplicationLauncherDestroyed ()
         {
             ApplicationLauncher.Instance.RemoveModApplication (applauncherButton);
             applauncherButton = null;
-        }
-
-        void StartServer ()
-        {
-            config.Load ();
-            rpcTcpServer.ListenAddress = config.Address;
-            rpcTcpServer.Port = config.RPCPort;
-            streamTcpServer.ListenAddress = config.Address;
-            streamTcpServer.Port = config.StreamPort;
-            core.OneRPCPerUpdate = config.OneRPCPerUpdate;
-            core.MaxTimePerUpdate = config.MaxTimePerUpdate;
-            core.AdaptiveRateControl = config.AdaptiveRateControl;
-            core.BlockingRecv = config.BlockingRecv;
-            core.RecvTimeout = config.RecvTimeout;
-            try {
-                server.Start ();
-            } catch (ServerException e) {
-                mainWindow.Errors.Add (e.Message);
-            }
         }
 
         /// <summary>
@@ -238,8 +229,8 @@ namespace KRPC
                 OnGUIApplicationLauncherDestroyed ();
             GameEvents.onGUIApplicationLauncherReady.Remove (OnGUIApplicationLauncherReady);
             GameEvents.onGUIApplicationLauncherDestroyed.Remove (OnGUIApplicationLauncherDestroyed);
-            Object.Destroy (mainWindow);
-            Object.Destroy (clientConnectingDialog);
+            Destroy (mainWindow);
+            Destroy (clientConnectingDialog);
             GUILayoutExtensions.Destroy ();
         }
 
@@ -249,8 +240,7 @@ namespace KRPC
         [SuppressMessage ("Gendarme.Rules.Correctness", "MethodCanBeMadeStaticRule")]
         public void OnApplicationQuit ()
         {
-            if (server.Running)
-                server.Stop ();
+            core.StopAll ();
         }
 
         /// <summary>
@@ -270,8 +260,22 @@ namespace KRPC
         {
             if (!ServicesChecker.OK)
                 return;
-            if (server != null && server.Running)
+            if (core != null && core.AnyRunning)
                 core.Update ();
+        }
+
+        /// <summary>
+        /// Whether the game is paused
+        /// </summary>
+        public bool IsPaused { get; private set; }
+
+        /// <summary>
+        /// Trigger server update, when the game is paused
+        /// </summary>
+        public void Update()
+        {
+            if (IsPaused && !config.Configuration.PauseServerWithGame)
+                FixedUpdate();
         }
     }
 }

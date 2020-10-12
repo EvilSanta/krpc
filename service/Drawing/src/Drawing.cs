@@ -16,7 +16,7 @@ namespace KRPC.Drawing
     /// <remarks>
     /// For drawing and interacting with the user interface, see the UI service.
     /// </remarks>
-    [KRPCService (GameScene = GameScene.Flight)]
+    [KRPCService (Id = 3, GameScene = GameScene.Flight)]
     public static class Drawing
     {
         /// <summary>
@@ -33,6 +33,19 @@ namespace KRPC.Drawing
         }
 
         /// <summary>
+        /// Draw a direction vector in the scene, starting from the origin of the given reference frame.
+        /// </summary>
+        /// <param name="direction">Direction to draw the line in.</param>
+        /// <param name="referenceFrame">Reference frame that the direction is in and defines the start position.</param>
+        /// <param name="length">The length of the line.</param>
+        /// <param name="visible">Whether the line is visible.</param>
+        [KRPCProcedure]
+        public static Line AddDirection(Tuple3 direction, ReferenceFrame referenceFrame, float length = 10f, bool visible = true)
+        {
+            return new Line(Vector3d.zero, direction.ToVector() * length, referenceFrame, visible);
+        }
+
+        /// <summary>
         /// Draw a direction vector in the scene, from the center of mass of the active vessel.
         /// </summary>
         /// <param name="direction">Direction to draw the line in.</param>
@@ -40,9 +53,16 @@ namespace KRPC.Drawing
         /// <param name="length">The length of the line.</param>
         /// <param name="visible">Whether the line is visible.</param>
         [KRPCProcedure]
-        public static Line AddDirection (Tuple3 direction, ReferenceFrame referenceFrame, float length = 10f, bool visible = true)
+        public static Line AddDirectionFromCom(Tuple3 direction, ReferenceFrame referenceFrame, float length = 10f, bool visible = true)
         {
-            return new Line (Vector3d.zero, direction.ToVector () * length, referenceFrame, visible);
+            var activeVesselRefFrame = SpaceCenter.Services.SpaceCenter.ActiveVessel.ReferenceFrame;
+            referenceFrame = ReferenceFrame.CreateHybrid(
+                activeVesselRefFrame,
+                referenceFrame,
+                referenceFrame,
+                referenceFrame
+            );
+            return new Line(Vector3d.zero, direction.ToVector() * length, referenceFrame, visible);
         }
 
         /// <summary>

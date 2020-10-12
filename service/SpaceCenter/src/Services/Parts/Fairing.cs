@@ -7,22 +7,30 @@ namespace KRPC.SpaceCenter.Services.Parts
 {
     /// <summary>
     /// A fairing. Obtained by calling <see cref="Part.Fairing"/>.
+    /// Supports both stock fairings, and those from the ProceduralFairings mod.
     /// </summary>
     [KRPCClass (Service = "SpaceCenter")]
     public class Fairing : Equatable<Fairing>
     {
-        readonly ModuleProceduralFairing fairing;
+        readonly Module fairing;
+        readonly Module proceduralFairing;
 
         internal static bool Is (Part part)
         {
-            return part.InternalPart.HasModule<ModuleProceduralFairing> ();
+            var internalPart = part.InternalPart;
+            // ProceduralFairingDecoupler is from the ProceduralFairings mod
+            return internalPart.HasModule<ModuleProceduralFairing> () || internalPart.HasModule("ProceduralFairingDecoupler");
         }
 
         internal Fairing (Part part)
         {
             Part = part;
-            fairing = part.InternalPart.Module<ModuleProceduralFairing> ();
-            if (fairing == null)
+            var internalPart = part.InternalPart;
+            if (internalPart.HasModule<ModuleProceduralFairing>())
+                fairing = new Module(part, internalPart.Module<ModuleProceduralFairing>());
+            if (internalPart.HasModule("ProceduralFairingDecoupler"))
+                proceduralFairing = new Module(part, internalPart.Module("ProceduralFairingDecoupler"));
+            if (fairing == null && proceduralFairing == null)
                 throw new ArgumentException ("Part is not a fairing");
         }
 
@@ -31,7 +39,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         public override bool Equals (Fairing other)
         {
-            return !ReferenceEquals (other, null) && Part == other.Part && fairing.Equals (other.fairing);
+            return !ReferenceEquals (other, null) &&
+                Part == other.Part && fairing == other.fairing && proceduralFairing == other.proceduralFairing;
         }
 
         /// <summary>
@@ -39,7 +48,12 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         public override int GetHashCode ()
         {
-            return Part.GetHashCode () ^ fairing.GetHashCode ();
+            int h = Part.GetHashCode ();
+            if (fairing != null)
+                h ^= fairing.GetHashCode();
+            if (proceduralFairing != null)
+                h ^= proceduralFairing.GetHashCode();
+            return h;
         }
 
         /// <summary>
@@ -54,16 +68,39 @@ namespace KRPC.SpaceCenter.Services.Parts
         [KRPCMethod]
         public void Jettison ()
         {
-            if (!Jettisoned)
-                fairing.DeployFairing ();
+            if (!Jettisoned) {
+                if (fairing != null) {
+                    fairing.TriggerEvent("Deploy");
+                } else {
+                    // Note: older versions of ProceduralFairings have the "Jettison" event,
+                    // newer versions have the "Jettison Fairing" event
+                    foreach (var e in proceduralFairing.Events) {
+                        if (e == "Jettison")
+                            proceduralFairing.TriggerEvent("Jettison");
+                        if (e == "Jettison Fairing")
+                            proceduralFairing.TriggerEvent("Jettison Fairing");
+                    }
+                }
+            }
         }
 
         /// <summary>
         /// Whether the fairing has been jettisoned.
         /// </summary>
         [KRPCProperty]
-        public bool Jettisoned {
-            get { return !fairing.CanMove; }
+        public bool Jettisoned
+        {
+            get {
+                if (fairing != null) {
+                    return !fairing.Events.Contains("Deploy");
+                } else {
+                    // Note: older versions of ProceduralFairings have the "Jettison" event,
+                    // newer versions have the "Jettison Fairing" event
+                    var events = proceduralFairing.Events;
+                    return !(events.Contains("Jettison") ||
+                             events.Contains("Jettison Fairing"));
+                }
+            }
         }
     }
 }

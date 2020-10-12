@@ -66,10 +66,10 @@ namespace KRPC.SpaceCenter.Services.Parts
                     return CargoBayState.Closed;
                 else if (!animation.IsMoving ())
                     return CargoBayState.Open;
-                else if (OpenEvent == null)
-                    return CargoBayState.Opening;
+                else if (!animation.animSwitch)
+                    return animation.startEventGUIName == "Open" ? CargoBayState.Opening : CargoBayState.Closing;
                 else
-                    return CargoBayState.Closing;
+                    return animation.startEventGUIName == "Close" ? CargoBayState.Opening : CargoBayState.Closing;
             }
         }
 
@@ -95,7 +95,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         BaseEvent OpenEvent {
             get {
                 return animation.Events
-                    .Where (x => x != null && (HighLogic.LoadedSceneIsEditor ? x.guiActiveEditor : x.guiActive) && x.active)
+                    .Where (x => x != null && (HighLogic.LoadedSceneIsEditor ? x.guiActiveEditor : x.guiActive))
                     .FirstOrDefault (x => x.guiName == "Open");
             }
         }
@@ -103,7 +103,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         BaseEvent CloseEvent {
             get {
                 return animation.Events
-                    .Where (x => x != null && (HighLogic.LoadedSceneIsEditor ? x.guiActiveEditor : x.guiActive) && x.active)
+                    .Where (x => x != null && (HighLogic.LoadedSceneIsEditor ? x.guiActiveEditor : x.guiActive))
                     .FirstOrDefault (x => x.guiName == "Close");
             }
         }

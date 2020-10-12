@@ -1,12 +1,12 @@
-load('/tools/build/python', 'py_sdist', 'py_test', 'py3_test', 'py_lint_test')
-load('/tools/build/client_test', 'client_test')
-load('/config', 'version', 'python_version')
+load('//tools/build:python.bzl', 'py_sdist', 'py2_test', 'py3_test', 'py_lint_test')
+load('//tools/build:client_test.bzl', 'client_test')
+load('//:config.bzl', 'version', 'python_version')
 
 genrule(
     name = 'python',
     srcs = [':python-pypi'],
     outs = ['krpc-python-%s.zip' % version],
-    cmd = 'ln -f -s "`pwd`/$<" "`pwd`/$@"',
+    cmd = 'cp "$<" "$@"',
     output_to_bindir = True,
     visibility = ['//visibility:public']
 )
@@ -50,12 +50,12 @@ client_test(
     test_executable = ':py3test',
     server_executable = '//tools/TestServer',
     tags = ['requires-network'],
-    size = 'small'
+    size = 'medium'
 )
 
-deps = ['@python_six//file', '@python_protobuf//file']
+deps = ['@python_protobuf//file']
 
-py_test(
+py2_test(
     name = 'py2test',
     src = ':python',
     pkg = 'krpc-'+python_version,
@@ -75,9 +75,11 @@ py3_test(
 
 py_lint_test(
     name = 'lint',
-    src = ':python',
-    pkg = 'krpc',
-    deps = deps + ['@python_enum34//file'],
-    rcfile = 'pylint.rc',
+    pkg = ':python',
+    pkg_name = 'krpc',
+    srcs = glob(['krpc/**/*']),
+    deps = deps,
+    pycodestyle_config = 'pycodestyle.ini',
+    pylint_config = 'pylint.rc',
     size = 'small'
 )

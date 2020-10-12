@@ -49,14 +49,31 @@ namespace KRPC.SpaceCenter.Services.Parts
         public Part Part { get; private set; }
 
         /// <summary>
+        /// Whether the solar panel is deployable.
+        /// </summary>
+        [KRPCProperty]
+        public bool Deployable {
+            get {
+                return
+                    panel.Events ["Extend"].active || panel.Events ["Retract"].active ||
+                    panel.deployState == ModuleDeployablePart.DeployState.EXTENDING ||
+                    panel.deployState == ModuleDeployablePart.DeployState.RETRACTING;
+            }
+        }
+
+        /// <summary>
         /// Whether the solar panel is extended.
         /// </summary>
         [KRPCProperty]
         public bool Deployed {
             get {
-                return panel.panelState == ModuleDeployableSolarPanel.panelStates.EXTENDED || panel.panelState == ModuleDeployableSolarPanel.panelStates.EXTENDING;
+                return
+                panel.deployState == ModuleDeployablePart.DeployState.EXTENDED ||
+                panel.deployState == ModuleDeployablePart.DeployState.EXTENDING;
             }
             set {
+                if (!Deployable)
+                    throw new InvalidOperationException ("Solar panel is not deployable");
                 if (value)
                     panel.Extend ();
                 else
@@ -69,7 +86,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         [KRPCProperty]
         public SolarPanelState State {
-            get { return panel.panelState.ToSolarPanelState (); }
+            get { return panel.deployState.ToSolarPanelState (); }
         }
 
         /// <summary>

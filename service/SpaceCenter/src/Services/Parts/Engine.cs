@@ -5,7 +5,9 @@ using System.Linq;
 using KRPC.Service.Attributes;
 using KRPC.SpaceCenter.ExtensionMethods;
 using KRPC.Utils;
-using Tuple3 = KRPC.Utils.Tuple<double, double, double>;
+using UnityEngine;
+using TupleV3 = KRPC.Utils.Tuple<Vector3d, Vector3d>;
+using TupleT3 = KRPC.Utils.Tuple<KRPC.Utils.Tuple<double, double, double>, KRPC.Utils.Tuple<double, double, double>>;
 
 namespace KRPC.SpaceCenter.Services.Parts
 {
@@ -27,7 +29,12 @@ namespace KRPC.SpaceCenter.Services.Parts
 
         internal static bool Is (Part part)
         {
-            return part.InternalPart.HasModule<ModuleEngines> ();
+            return Is (part.InternalPart);
+        }
+
+        internal static bool Is (global::Part part)
+        {
+            return part.HasModule<ModuleEngines> ();
         }
 
         internal Engine (Part part)
@@ -44,8 +51,10 @@ namespace KRPC.SpaceCenter.Services.Parts
         Engine (ModuleEngines engine)
         {
             Part = new Part (engine.part);
-            engines = new List<ModuleEngines> ();
-            engines.Add (engine);
+            engines = new List<ModuleEngines>
+            {
+                engine
+            };
             gimbal = Part.InternalPart.Module<ModuleGimbal> ();
             if (engine == null)
                 throw new ArgumentException ("Part does not have a ModuleEngines PartModule");
@@ -81,11 +90,23 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// Get the currently active ModuleEngines part module. For a single-mode engine, this is just the
-        /// ModulesEngine for the part. For multi-mode engines, this is the ModulesEngine for the current mode.
+        /// Get the currently active ModuleEngines part module. For a single-mode engine,
+        /// this is just the ModulesEngine for the part. For multi-mode engines, this is
+        /// the ModulesEngine for the current mode.
         /// </summary>
         ModuleEngines CurrentEngine {
             get { return engines [(multiModeEngine == null || multiModeEngine.runningPrimary) ? 0 : 1]; }
+        }
+
+        /// <summary>
+        /// Ensures the propellant amounts have been updated, which may not have
+        /// happened if the engine has not been activated.
+        /// </summary>
+        void UpdateConnectedResources()
+        {
+            var engine = CurrentEngine;
+            foreach (var propellant in engine.propellants)
+                propellant.UpdateConnectedResources(engine.part);
         }
 
         /// <summary>
@@ -111,13 +132,30 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// Get the thrust of the engine with the given throttle and atmospheric conditions in Newtons
+        /// Get the thrust of the engine in Newtons, with the given throttle percentage
+        /// and atmospheric pressure in atmospheres.
         /// </summary>
         float GetThrust (float throttle, double pressure)
         {
             var engine = CurrentEngine;
-            pressure *= PhysicsGlobals.KpaToAtmospheres;
-            return 1000f * throttle * engine.maxFuelFlow * engine.g * engine.atmosphereCurve.Evaluate ((float)pressure);
+
+            // Compute fuel flow multiplier
+            float flowMultiplier = 1;
+            if (engine.atmChangeFlow)
+                flowMultiplier = (float)(engine.part.atmDensity / 1.225d);
+            if (engine.useAtmCurve && engine.atmCurve != null)
+                flowMultiplier = engine.atmCurve.Evaluate (flowMultiplier);
+
+            // Compute velocity multiplier
+            float velocityMultiplier = 1;
+            if (engine.useVelCurve && engine.velCurve != null)
+                velocityMultiplier = velocityMultiplier * engine.velCurve.Evaluate ((float)engine.vessel.mach);
+
+            // Get specific impulse at the given pressure
+            var specificImpulse = engine.atmosphereCurve.Evaluate ((float)pressure);
+
+            // Compute thrust
+            return 1000f * Mathf.Lerp (engine.minFuelFlow, engine.maxFuelFlow, throttle) * flowMultiplier * specificImpulse * engine.g * velocityMultiplier;
         }
 
         /// <summary>
@@ -128,7 +166,7 @@ namespace KRPC.SpaceCenter.Services.Parts
             get {
                 if (!Active || !HasFuel)
                     return 0f;
-                return GetThrust (CurrentEngine.currentThrottle, Part.InternalPart.vessel.staticPressurekPa);
+                return CurrentEngine.finalThrust * 1000f;
             }
         }
 
@@ -136,14 +174,15 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// The amount of thrust, in Newtons, that would be produced by the engine
         /// when activated and with its throttle set to 100%.
         /// Returns zero if the engine does not have any fuel.
-        /// Takes the engine's current <see cref="ThrustLimit"/> and atmospheric conditions into account.
+        /// Takes the engine's current <see cref="ThrustLimit"/> and atmospheric conditions
+        /// into account.
         /// </summary>
         [KRPCProperty]
         public float AvailableThrust {
             get {
                 if (!HasFuel)
                     return 0f;
-                return GetThrust (ThrustLimit, Part.InternalPart.vessel.staticPressurekPa);
+                return GetThrust (ThrustLimit, Part.InternalPart.staticPressureAtm);
             }
         }
 
@@ -153,7 +192,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         [KRPCProperty]
         public float MaxThrust {
-            get { return GetThrust (1f, Part.InternalPart.vessel.staticPressurekPa); }
+            get { return GetThrust (1f, Part.InternalPart.staticPressureAtm); }
         }
 
         /// <summary>
@@ -201,7 +240,17 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         [KRPCProperty]
         public float SpecificImpulse {
-            get { return CurrentEngine.realIsp; }
+            get {
+                var engine = CurrentEngine;
+                if (engine.realIsp < 0.01) {
+                    // If the realIsp hasn't been calculated, get the specific impuse from the
+                    // atmosphere curve of the engine. This works around an issue with RO mod engines
+                    // not computing realIsp unless they are activate *and* throttled is greater than 0
+                    return engine.atmosphereCurve.Evaluate(
+                        (float)(engine.vessel.staticPressurekPa * PhysicsGlobals.KpaToAtmospheres));
+                }
+                return engine.realIsp;
+            }
         }
 
         /// <summary>
@@ -233,7 +282,9 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         [KRPCProperty]
         public IList<Propellant> Propellants {
-            get {
+            get
+            {
+                UpdateConnectedResources();
                 return CurrentEngine.propellants.Select (propellant => new Propellant (propellant, CurrentEngine.part)).ToList ();
             }
         }
@@ -243,12 +294,13 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// to the ratio at which they are consumed by the engine.
         /// </summary>
         /// <remarks>
-        /// For example, if the ratios are 0.6 for LiquidFuel and 0.4 for Oxidizer, then for every 0.6 units of
-        /// LiquidFuel that the engine burns, it will burn 0.4 units of Oxidizer.
+        /// For example, if the ratios are 0.6 for LiquidFuel and 0.4 for Oxidizer, then for every
+        /// 0.6 units of LiquidFuel that the engine burns, it will burn 0.4 units of Oxidizer.
         /// </remarks>
         [KRPCProperty]
         public IDictionary<string, float> PropellantRatios {
             get {
+                UpdateConnectedResources();
                 var engine = CurrentEngine;
                 var max = engine.propellants.Max (p => p.ratio);
                 return engine.propellants.ToDictionary (p => p.name, p => p.ratio / max);
@@ -258,18 +310,13 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// <summary>
         /// Whether the engine has any fuel available.
         /// </summary>
-        /// <remarks>
-        /// The engine must be activated for this property to update correctly.
-        /// </remarks>
-        //FIXME: should not have to enable the RCS thruster for this to update
         [KRPCProperty]
         public bool HasFuel {
-            get {
-                var engine = CurrentEngine;
-                if (engine.flameout)
-                    return false;
-                foreach (var propellant in engine.propellants)
-                    if (propellant.isDeprived)
+            get
+            {
+                UpdateConnectedResources();
+                foreach (var propellant in CurrentEngine.propellants)
+                    if (propellant.actualTotalAvailable < 0.001)
                         return false;
                 return true;
             }
@@ -361,9 +408,11 @@ namespace KRPC.SpaceCenter.Services.Parts
         public IDictionary<string,Engine> Modes {
             get {
                 CheckMultiMode ();
-                var result = new Dictionary<string,Engine> ();
-                result [multiModeEngine.primaryEngineID] = new Engine (engines [0]);
-                result [multiModeEngine.secondaryEngineID] = new Engine (engines [1]);
+                var result = new Dictionary<string, Engine>
+                {
+                    [multiModeEngine.primaryEngineID] = new Engine(engines[0]),
+                    [multiModeEngine.secondaryEngineID] = new Engine(engines[1])
+                };
                 return result;
             }
         }
@@ -458,20 +507,25 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The available torque in the pitch, roll and yaw axes of the vessel, in Newton meters.
-        /// These axes correspond to the coordinate axes of the <see cref="Vessel.ReferenceFrame" />.
+        /// The available torque, in Newton meters, that can be produced by this engine,
+        /// in the positive and negative pitch, roll and yaw axes of the vessel. These axes
+        /// correspond to the coordinate axes of the <see cref="Vessel.ReferenceFrame"/>.
         /// Returns zero if the engine is inactive, or not gimballed.
         /// </summary>
         [KRPCProperty]
-        public Tuple3 AvailableTorque {
-            get { return AvailableTorqueVector.ToTuple (); }
+        [SuppressMessage ("Gendarme.Rules.Design.Generic", "DoNotExposeNestedGenericSignaturesRule")]
+        public TupleT3 AvailableTorque {
+            get { return AvailableTorqueVectors.ToTuple (); }
         }
 
-        internal Vector3d AvailableTorqueVector {
+        [SuppressMessage ("Gendarme.Rules.Design.Generic", "DoNotExposeNestedGenericSignaturesRule")]
+        internal TupleV3 AvailableTorqueVectors {
             get {
                 if (!Active || !Gimballed)
-                    return Vector3d.zero;
-                return gimbal.GetPotentialTorque () * 1000f;
+                    return ITorqueProviderExtensions.zero;
+                var torque = gimbal.GetPotentialTorque ();
+                // Note: GetPotentialTorque returns negative torques with incorrect sign
+                return new TupleV3 (torque.Item1, -torque.Item2);
             }
         }
     }

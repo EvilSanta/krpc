@@ -1,18 +1,23 @@
 import unittest
 import krpctest
 
+
 class TestPartsControlSurface(krpctest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        if cls.connect().space_center.active_vessel.name != 'PartsControlSurface':
+        if cls.connect().space_center.active_vessel.name \
+           != 'PartsControlSurface':
             cls.new_save()
             cls.launch_vessel_from_vab('PartsControlSurface')
             cls.remove_other_vessels()
-            cls.wait(3) #TODO: needed to let available torque calculations settle
+            # TODO: wait needed to let available torque calculations settle
+            cls.wait(3)
         parts = cls.connect().space_center.active_vessel.parts
-        cls.ctrlsrf = parts.with_title('FAT-455 Aeroplane Control Surface')[0].control_surface
-        cls.winglets = [x.control_surface for x in parts.with_title('Delta-Deluxe Winglet')]
+        cls.ctrlsrf = parts.with_title(
+            'FAT-455 Aeroplane Control Surface')[0].control_surface
+        cls.winglets = [x.control_surface for x in
+                        parts.with_title('Delta-Deluxe Winglet')]
         cls.winglet = cls.winglets[0]
 
     def test_get_pyr_enabled(self):
@@ -51,6 +56,13 @@ class TestPartsControlSurface(krpctest.TestCase):
         self.assertTrue(self.ctrlsrf.yaw_enabled)
         self.assertFalse(self.ctrlsrf.roll_enabled)
 
+    def test_authority_limiter(self):
+        self.assertEqual(100, self.ctrlsrf.authority_limiter)
+        self.ctrlsrf.authority_limiter = 50
+        self.assertEqual(50, self.ctrlsrf.authority_limiter)
+        self.ctrlsrf.authority_limiter = 100
+        self.assertEqual(100, self.ctrlsrf.authority_limiter)
+
     def test_inverted(self):
         self.assertFalse(self.ctrlsrf.inverted)
         self.ctrlsrf.inverted = True
@@ -74,8 +86,11 @@ class TestPartsControlSurface(krpctest.TestCase):
         self.assertAlmostEqual(0.2, self.winglet.surface_area)
 
     def test_available_torque(self):
-        self.assertAlmostEqual((0, 0, 0), self.ctrlsrf.available_torque, places=3)
-        self.assertAlmostEqual((0, 0, 0), self.winglet.available_torque, places=3)
+        self.assertAlmostEqual(
+            (0, 0, 0), self.ctrlsrf.available_torque[0], places=3)
+        self.assertAlmostEqual(
+            (0, 0, 0), self.winglet.available_torque[1], places=3)
+
 
 if __name__ == '__main__':
     unittest.main()

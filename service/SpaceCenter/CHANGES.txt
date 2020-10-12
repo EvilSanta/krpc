@@ -1,4 +1,118 @@
+v0.4.9
+ * Use raycast to measure surface height more precisely in CelestialBody.SurfaceHeight (#524)
+ * Fix null reference exception when checking active vessel (#528, #530)
+ * Fix null reference exception when waiting for active vessel change (#516, #529)
+ * Add RCS.ThrustLimit and RCS.AvailableThrust (#519)
+ * Add Control.StageLock (#541)
+ * Fix launch checks and automatic vessel recovery in SpaceCenter.LaunchVessel
+ * Fix setting camera target to an unloaded vessel (#536)
+ * Fix Control.Legs and Control.Wheels not deploying/retracting legs/wheels correctly (#509, #261)
+ * Allow legs/wheels can be individually deployed/retracted using Leg.Deployed and Wheel.Deployed (#509, #261)
+ * Allow lights to be individually turned on and off (#261)
+ * Fix Engine and RCS fuel calculations only being done when they are enabled (#514, #254)
+ * Add support for parts that contain multiple experiments (#533)
+   * Part.Experiment now throws an exception if the part has more than one experiment
+   * Add Part.Experiments which returns a list of experiments in the part
+   * Update Parts.Experiments to return all experiments contained in the parts
+ * Add Experiment.Name and Experiment.Title
+ * Fix Fairing.Jettison and Fairing.Jettisoned for parts from the ProceduralFairings mod (#549)
+ * Fix Engine.SpecificImpulse returning 0 for Realism Overhaul engines that are active but not throttled up (#548)
+ * Fix compatibility with DMagic science experiments mod (#550)
+ * Fix available torque calculations for RCS (#552, #354)
+ * Fix RCS.MaxThrust returning incorrect values
+
+v0.4.8
+ * Allows RPCs to be accessed from game scenes other than just flight (#471)
+ * Merge NameTag (http://github.com/krpc/NameTag) into the main kRPC release
+ * Fix air-relative velocity calculation for SimulateAeroDynamicForceAt with FAR (#500)
+ * Changed Orbit API to accept target orbits as Orbit objects instead of Vessel objects, to allow computing closest approach etc. to planets (#479)
+ * Trying to enable SAS while the autopilot is engaged now throws an exception as this is not permitted (#492)
+ * Add color and size paramters to UI.Message (#499)
+ * Fix Flight.TerminalVelocity (#485)
+ * Fix null reference exception when deploying fairings after reverting to launch (#501)
+
+v0.4.7
+ * Fix Flight.Lift and Flight.Drag should return values in Newtons (#475)
+
+v0.4.6
+ * Added SpaceCenter.GameMode (#455)
+ * Added SpaceCenter.Science, Funds and Reputation (#455)
+ * Fix pre-flight checks not happending in SpaceCenter.LaunchVessel (#469)
+ * Add 'recover' boolean argument to SpaceCenter.LaunchVessel to recover existing vessels on the launch pad (#469)
+ * Change CelestialBody.Biomes to return an empty list instead of throwing an exception if the body has no biomes (#457)
+ * Fixed science transmission not working correctly (#456)
+
+v0.4.5
+ * Fixed roll input when input mode is override (#445)
+ * Marked CelestialBody.Orbit as nullable, as it returns null for the sun
+
+v0.4.4
+ * Add ResourceConverter.ThermalEfficiency, CoreTemperature and OptimumCoreTemperature (#439)
+
+v0.4.1
+ * Add SpaceCenter.RaycastDistance and RaycastPart (#423)
+ * Add Vessel.CrewCount, CrewCapacity and Crew (#426)
+ * Add CrewMember class (#426)
+
+v0.4.0
+ * AutoPilot.Wait and Error methods now throw an exception if the auto-pilot is not engaged (#409)
+
+v0.3.10
+ * Fix maneuver node reference frame to point in the direction of the remaining burn, rather than just the initially planned burn (#404)
+ * Add following to CelestialBody class: AltitudeAtPosition, LatitudeAtPosition, LongitudeAtPosition and AtmosphericDensityAtPosition (#413)
+ * Add following to Orbit class: RadiusAt, PositionAt, MeanAnomalyAtUT, TrueAnomalyAtAN, TrueAnomalyAtDN
+ * Add rendezvous method to Orbit class: RelativeInclination, TimeOfClosestApproach, DistanceAtClosestApproach, ListClosestApproaches (#407)
+ * Add Control.InputMode to configure the way that control inputs are handled (they are either additive or override the vessels control inputs) (#384)
+ * Add CelestialBody.TemperatureAt, DensityAt and PressureAt (#350, #352)
+ * Add Flight.SimulateAerodynamicForceAt (#352)
+
+v0.3.9
+ * Add VesselType.Plane and VesselType.Relay (#385)
+ * Fix Control.WheelThrottle and WheelSteering (#388)
+ * Fix off by one error in stage numbers for Vessel.ResourcesInDecoupleStage (#380)
+ * Fix CelestialBody.InitialRotation and RotationAngle returning values out of range 0 - 2*PI (#391)
+ * Add WaypointManager.AddWaypointAtAltitude (#399)
+ * Add CelestialBody.PositionAtAltitude (#399)
+ * Fix SpaceCenter.SetTarget not correctly setting target if input locks are enabled (#397)
+ * Fix possible null reference exception in ResourceConverter.State
+
+v0.3.8
+ * Add support for CommNet
+ * Add support for contracts (#361)
+ * Add support for RealChutes, add Parachute.Arm and Parachute.Armed (#382)
+ * Add support for Procedural Fairings (#368)
+ * Add CelestialBody.InitialRotation and RotationAngle (#369)
+ * Add SpaceCenter.Navball to show/hide the navball (#355)
+ * Add SpaceCenter.UIVisible to show/hide the UI (#355)
+ * Add ControlSurface.AuthorityLimiter (#352)
+ * Extended wheels functionality
+ * Rename LandingLeg to Leg
+ * Rename LandingGear to Wheel
+ * Add Antenna.Deployable, Leg.Deployable and SolarPanel.Deployable
+ * Add properties to Control class to set the state of all solar panels, radiators, legs, etc. on a vessel (#383)
+ * Fix bug with DockingPort.Rotation (#371)
+ * Fix bug with Part.Rotation (#371)
+ * Fix bug with Part.BoundingBox (#370)
+
+v0.3.7
+ * Add custom reference frames (ReferenceFrame.CreateRelative and CreateHybrid) (#252)
+ * Add Vessel.BoundingBox and Part.BoundingBox (#352)
+ * Add LandingGear.IsGrounded and LandingLeg.IsGrounded (#352)
+ * Add Part.Highlighted and HighlightColor (#332)
+ * Change CelestialBody.Biomes to return a set instead of a list
+ * Change available torque methods to return a pair of torque vectors, one in the positive control directions
+   and one in the negative control direction.
+ * Add Vessel.AvailableOtherTorque which returns the available torque from other parts (i.e. torque providers
+   other than the stock reaction wheels, RCS thrusters, gimballed engines and control surfaces)
+ * Include this 'other' torque in Vessel.AvailableTorque
+ * Change required RemoteTech version to 1.8.0
+ * Change maneuver node methods and properties to use double precision values (#357)
+ * Add support for Action Groups Extended mod (#364, #365)
+
 v0.3.6
+ * Add Part.Tag which can be used to get/set the name tag set via the NameTag mod, or kOS (#297)
+ * Add Parts.WithTag to get a list of all parts with the given tag value
+ * Remove DockingPort.Name and Parts.DockingPortsWithName - part tagging can now be used instead
  * Add Flight.TrueAirSpeed
  * Add FAR support for Flight.Mach and add Flight.ReynoldsNumber (#313)
  * Fix value returned by Orbit.Inclination (#301)
@@ -14,6 +128,10 @@ v0.3.6
  * Add Experiment.Biome to get the biome an experiment part is currently in (#296)
  * Add Experiment.IsAvailable which indicates if there is science that be gathered by the experiment part
  * Add ScienceSubject class for getting information about a type of experiment. Accessed via Experiment.ScienceSubject.
+ * Fix landing gear state on launch (#314)
+ * Add SpaceCenter.WaypointManager and Waypoint class for interacting with waypoints (#335)
+ * Change camera distances to use meters (#339)
+ * Fix engine thrust calculation for air breathing engines (#327)
 
 v0.3.5
  * Improved AutoPilot that auto-tunes itself based on the vessels available torque and moment of inertia (#289)

@@ -1,4 +1,5 @@
 using System;
+using KRPC.Service;
 using KRPC.Service.Attributes;
 using KRPC.SpaceCenter.ExtensionMethods;
 using KRPC.Utils;
@@ -9,8 +10,8 @@ namespace KRPC.SpaceCenter.Services
     /// <summary>
     /// Represents a maneuver node. Can be created using <see cref="Control.AddNode"/>.
     /// </summary>
-    //FIXME: need to perform memory management for node objects
-    [KRPCClass (Service = "SpaceCenter")]
+    // FIXME: need to perform memory management for node objects
+    [KRPCClass (Service = "SpaceCenter", GameScene = GameScene.Flight)]
     public class Node : Equatable<Node>
     {
         /// Note: Maneuver node delta-v vectors use a special coordinate system.
@@ -20,11 +21,15 @@ namespace KRPC.SpaceCenter.Services
 
         readonly Guid vesselId;
 
-        internal Node (global::Vessel vessel, double ut, float prograde, float normal, float radial)
+        internal Node (global::Vessel vessel, double ut, double prograde, double normal, double radial)
         {
             vesselId = vessel.id;
-            InternalNode = vessel.patchedConicSolver.AddManeuverNode (ut);
-            InternalNode.OnGizmoUpdated (new Vector3d (radial, normal, prograde), ut);
+            if (InternalVessel.patchedConicSolver == null)
+                throw new InvalidOperationException ("Cannot add maneuver node");
+            var node = vessel.patchedConicSolver.AddManeuverNode (ut);
+            node.DeltaV = new Vector3d (radial, normal, prograde);
+            Update ();
+            InternalNode = node;
         }
 
         /// <summary>
@@ -33,9 +38,9 @@ namespace KRPC.SpaceCenter.Services
         public Node (global::Vessel vessel, ManeuverNode node)
         {
             if (ReferenceEquals (vessel, null))
-                throw new ArgumentNullException ("vessel");
+                throw new ArgumentNullException (nameof (vessel));
             if (ReferenceEquals (node, null))
-                throw new ArgumentNullException ("node");
+                throw new ArgumentNullException (nameof (node));
             vesselId = vessel.id;
             InternalNode = node;
         }
@@ -82,38 +87,41 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// The magnitude of the maneuver nodes delta-v in the prograde direction, in meters per second.
+        /// The magnitude of the maneuver nodes delta-v in the prograde direction,
+        /// in meters per second.
         /// </summary>
         [KRPCProperty]
-        public float Prograde {
-            get { return (float)InternalNode.DeltaV.z; }
+        public double Prograde {
+            get { return InternalNode.DeltaV.z; }
             set {
                 InternalNode.DeltaV.z = value;
-                InternalNode.OnGizmoUpdated (InternalNode.DeltaV, InternalNode.UT);
+                Update ();
             }
         }
 
         /// <summary>
-        /// The magnitude of the maneuver nodes delta-v in the normal direction, in meters per second.
+        /// The magnitude of the maneuver nodes delta-v in the normal direction,
+        /// in meters per second.
         /// </summary>
         [KRPCProperty]
-        public float Normal {
-            get { return (float)InternalNode.DeltaV.y; }
+        public double Normal {
+            get { return InternalNode.DeltaV.y; }
             set {
                 InternalNode.DeltaV.y = value;
-                InternalNode.OnGizmoUpdated (InternalNode.DeltaV, InternalNode.UT);
+                Update ();
             }
         }
 
         /// <summary>
-        /// The magnitude of the maneuver nodes delta-v in the radial direction, in meters per second.
+        /// The magnitude of the maneuver nodes delta-v in the radial direction,
+        /// in meters per second.
         /// </summary>
         [KRPCProperty]
-        public float Radial {
-            get { return (float)InternalNode.DeltaV.x; }
+        public double Radial {
+            get { return InternalNode.DeltaV.x; }
             set {
                 InternalNode.DeltaV.x = value;
-                InternalNode.OnGizmoUpdated (InternalNode.DeltaV, InternalNode.UT);
+                Update ();
             }
         }
 
@@ -121,33 +129,37 @@ namespace KRPC.SpaceCenter.Services
         /// The delta-v of the maneuver node, in meters per second.
         /// </summary>
         /// <remarks>
-        /// Does not change when executing the maneuver node. See <see cref="Node.RemainingDeltaV"/>.
+        /// Does not change when executing the maneuver node. See <see cref="RemainingDeltaV"/>.
         /// </remarks>
         [KRPCProperty]
-        public float DeltaV {
-            get { return (float)InternalNode.DeltaV.magnitude; }
+        public double DeltaV {
+            get { return InternalNode.DeltaV.magnitude; }
             set {
                 var direction = InternalNode.DeltaV.normalized;
-                InternalNode.OnGizmoUpdated (new Vector3d (direction.x * value, direction.y * value, direction.z * value), InternalNode.UT);
+                InternalNode.DeltaV = new Vector3d (direction.x * value, direction.y * value, direction.z * value);
+                Update ();
             }
         }
 
         /// <summary>
-        /// Gets the remaining delta-v of the maneuver node, in meters per second. Changes as the node
-        /// is executed. This is equivalent to the delta-v reported in-game.
+        /// Gets the remaining delta-v of the maneuver node, in meters per second. Changes as the
+        /// node is executed. This is equivalent to the delta-v reported in-game.
         /// </summary>
         [KRPCProperty]
-        public float RemainingDeltaV {
-            get { return (float)InternalNode.GetBurnVector (InternalNode.patch).magnitude; }
+        public double RemainingDeltaV {
+            get { return InternalNode.GetBurnVector (InternalNode.patch).magnitude; }
         }
 
         /// <summary>
-        /// Returns a vector whose direction the direction of the maneuver node burn, and whose magnitude
-        /// is the delta-v of the burn in m/s.
+        /// Returns the burn vector for the maneuver node.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <param name="referenceFrame">The reference frame that the returned vector is in.
+        /// Defaults to <see cref="Vessel.OrbitalReferenceFrame"/>.</param>
+        /// <returns>A vector whose direction is the direction of the maneuver node burn, and
+        /// magnitude is the delta-v of the burn in meters per second.
+        /// </returns>
         /// <remarks>
-        /// Does not change when executing the maneuver node. See <see cref="Node.RemainingBurnVector"/>.
+        /// Does not change when executing the maneuver node. See <see cref="RemainingBurnVector"/>.
         /// </remarks>
         [KRPCMethod]
         public Tuple3 BurnVector (ReferenceFrame referenceFrame = null)
@@ -158,10 +170,16 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Returns a vector whose direction the direction of the maneuver node burn, and whose magnitude
-        /// is the delta-v of the burn in m/s. The direction and magnitude change as the burn is executed.
+        /// Returns the remaining burn vector for the maneuver node.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <param name="referenceFrame">The reference frame that the returned vector is in.
+        /// Defaults to <see cref="Vessel.OrbitalReferenceFrame"/>.</param>
+        /// <returns>A vector whose direction is the direction of the maneuver node burn, and
+        /// magnitude is the delta-v of the burn in meters per second.
+        /// </returns>
+        /// <remarks>
+        /// Changes as the maneuver node is executed. See <see cref="BurnVector"/>.
+        /// </remarks>
         [KRPCMethod]
         public Tuple3 RemainingBurnVector (ReferenceFrame referenceFrame = null)
         {
@@ -176,7 +194,10 @@ namespace KRPC.SpaceCenter.Services
         [KRPCProperty]
         public double UT {
             get { return InternalNode.UT; }
-            set { InternalNode.UT = value; }
+            set {
+                InternalNode.UT = value;
+                Update ();
+            }
         }
 
         /// <summary>
@@ -195,6 +216,13 @@ namespace KRPC.SpaceCenter.Services
             get { return new Orbit (InternalNode.nextPatch); }
         }
 
+        void Update () {
+            var vessel = InternalVessel;
+            if (vessel.patchedConicSolver == null)
+                throw new InvalidOperationException ("Cannot update maneuver node");
+            vessel.patchedConicSolver.UpdateFlightPlan ();
+        }
+
         /// <summary>
         /// Removes the maneuver node.
         /// </summary>
@@ -203,13 +231,15 @@ namespace KRPC.SpaceCenter.Services
         {
             if (InternalNode == null)
                 throw new InvalidOperationException ("Node does not exist");
+            if (InternalVessel.patchedConicSolver == null)
+                throw new InvalidOperationException ("Cannot remove maneuver node");
             InternalNode.RemoveSelf ();
             InternalNode = null;
             // TODO: delete this Node object
         }
 
         /// <summary>
-        /// Gets the reference frame that is fixed relative to the maneuver node's burn.
+        /// The reference frame that is fixed relative to the maneuver node's burn.
         /// <list type="bullet">
         /// <item><description>The origin is at the position of the maneuver node.</description></item>
         /// <item><description>The y-axis points in the direction of the burn.</description></item>
@@ -222,7 +252,7 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Gets the reference frame that is fixed relative to the maneuver node, and
+        /// The reference frame that is fixed relative to the maneuver node, and
         /// orientated with the orbital prograde/normal/radial directions of the
         /// original orbit at the maneuver node's position.
         /// <list type="bullet">
@@ -241,26 +271,30 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Returns the position vector of the maneuver node in the given reference frame.
+        /// The position vector of the maneuver node in the given reference frame.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The position as a vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// position vector is in.</param>
         [KRPCMethod]
         public Tuple3 Position (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.PositionFromWorldSpace (InternalNode.patch.getPositionAtUT (InternalNode.UT)).ToTuple ();
         }
 
         /// <summary>
-        /// Returns the unit direction vector of the maneuver nodes burn in the given reference frame.
+        /// The direction of the maneuver nodes burn.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The direction as a unit vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// direction is in.</param>
         [KRPCMethod]
         public Tuple3 Direction (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.DirectionFromWorldSpace (WorldBurnVector.normalized).ToTuple ();
         }
     }

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using KRPC.Continuations;
 using KRPC.Service;
 using KRPC.Service.Messages;
-using KRPC.Utils;
 using Moq;
 using NUnit.Framework;
 
@@ -12,20 +11,22 @@ namespace KRPC.Test.Service
     [TestFixture]
     public class ServicesTest
     {
-        static Request Req (string service, string procedure, params Argument[] args)
+        static ProcedureCall Call (string service, string procedure, params Argument[] args)
         {
-            var request = new Request (service, procedure);
+            var call = new ProcedureCall (service, procedure);
             foreach (var arg in args)
-                request.Arguments.Add (arg);
-            return request;
+                call.Arguments.Add (arg);
+            return call;
         }
 
-        static Response Res (string error, int time)
+        static ProcedureCall CallById (string service, string procedure, params Argument[] args)
         {
-            return new Response {
-                Error = error,
-                Time = time
-            };
+            var serviceSignature = global::KRPC.Service.Services.Instance.GetServiceSignature (new ProcedureCall (service, procedure));
+            var procedureSignature = global::KRPC.Service.Services.Instance.GetProcedureSignature (new ProcedureCall (service, procedure));
+            var call = new ProcedureCall (string.Empty, serviceSignature.Id, string.Empty, procedureSignature.Id);
+            foreach (var arg in args)
+                call.Arguments.Add (arg);
+            return call;
         }
 
         static Argument Arg (uint position, object value)
@@ -33,10 +34,30 @@ namespace KRPC.Test.Service
             return new Argument (position, value);
         }
 
-        static Response Run (Request request)
+        static ProcedureResult Run (ProcedureCall call)
         {
-            var procedure = KRPC.Service.Services.Instance.GetProcedureSignature (request.Service, request.Procedure);
-            return KRPC.Service.Services.Instance.HandleRequest (procedure, request);
+            var continuation = new ProcedureCallContinuation(call);
+            return continuation.Run();
+        }
+
+        static void CheckResultNotEmpty (ProcedureResult result)
+        {
+            Assert.IsTrue (result.HasValue);
+            Assert.IsFalse (result.HasError);
+        }
+
+        static void CheckResultEmpty (ProcedureResult result)
+        {
+            Assert.IsFalse (result.HasValue);
+            Assert.IsFalse (result.HasError);
+        }
+
+        static void CheckError (string name, string description, ProcedureResult result)
+        {
+            Assert.IsFalse (result.HasValue);
+            Assert.IsTrue (result.HasError);
+            Assert.AreEqual (name, result.Error.Name);
+            Assert.AreEqual (description, result.Error.Description);
         }
 
         [SetUp]
@@ -48,232 +69,187 @@ namespace KRPC.Test.Service
         [Test]
         public void NonExistantService ()
         {
-            Assert.Throws<RPCException> (() => Run (Req ("NonExistantService", "NonExistantProcedure")));
+            CheckError (String.Empty, "Service \"NonExistantService\" not found",
+                        Run (Call ("NonExistantService", "NonExistantProcedure")));
         }
 
         [Test]
         public void NonExistantProcedure ()
         {
-            Assert.Throws<RPCException> (() => Run (Req ("TestService", "NonExistantProcedure")));
+            CheckError (String.Empty, "Procedure \"NonExistantProcedure\" not found, " +
+                        "in service \"TestService\"",
+                        Run (Call ("TestService", "NonExistantProcedure")));
         }
 
         [Test]
         public void ProcedureWithoutAttribute ()
         {
-            Assert.Throws<RPCException> (() => Run (Req ("TestService", "ProcedureWithoutAttribute")));
+            var mock = new Mock<ITestService> (MockBehavior.Strict);
+            mock.Setup (x => x.ProcedureWithoutAttribute ());
+            CheckError (String.Empty, "Procedure \"ProcedureWithoutAttribute\" not found, " +
+                        "in service \"TestService\"",
+                        Run (Call ("TestService", "ProcedureWithoutAttribute")));
+            mock.Verify (x => x.ProcedureWithoutAttribute (), Times.Never ());
         }
 
-        /// <summary>
-        /// Test service method with no argument and no return value
-        /// </summary>
         [Test]
-        public void HandleRequestNoArgsNoReturn ()
+        public void ExecuteCallNoArgsNoReturn ()
         {
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.Setup (x => x.ProcedureNoArgsNoReturn ());
             TestService.Service = mock.Object;
-            Run (Req ("TestService", "ProcedureNoArgsNoReturn"));
+            var result = Run (Call ("TestService", "ProcedureNoArgsNoReturn"));
             mock.Verify (x => x.ProcedureNoArgsNoReturn (), Times.Once ());
+            CheckResultEmpty (result);
         }
 
-        /// <summary>
-        /// Test calling a service method with an invalid argument
-        /// </summary>
         [Test]
-        public void HandleRequestSingleInvalidArgNoReturn ()
-        {
-            // should pass a string, not an int
-            var request = Req ("TestService", "CreateTestObject", Arg (0, 42));
-            Assert.Throws<RPCException> (() => Run (request));
-        }
-
-        /// <summary>
-        /// Test calling a service method that returns null
-        /// </summary>
-        [Test]
-        public void HandleRequestNoArgsReturnsNull ()
+        public void ExecuteCallNoArgsNoReturnByID ()
         {
             var mock = new Mock<ITestService> (MockBehavior.Strict);
-            mock.Setup (x => x.ProcedureNoArgsReturns ()).Returns ((Response)null);
+            mock.Setup (x => x.ProcedureNoArgsNoReturn ());
             TestService.Service = mock.Object;
-            Assert.Throws<RPCException> (() => Run (Req ("TestService", "ProcedureNoArgsReturns")));
+            var result = Run (CallById ("TestService", "ProcedureNoArgsNoReturn"));
+            mock.Verify (x => x.ProcedureNoArgsNoReturn (), Times.Once ());
+            CheckResultEmpty (result);
+        }
+
+        [Test]
+        public void ExecuteCallSingleInvalidArgNoReturn ()
+        {
+            var mock = new Mock<ITestService> (MockBehavior.Strict);
+            mock.Setup (x => x.CreateTestObject (It.IsAny<string> ()));
+            // should pass a string, not an int
+            var request = Call ("TestService", "CreateTestObject", Arg (0, 42));
+            CheckError (String.Empty, "Incorrect argument type for parameter value in " +
+                        "TestService.CreateTestObject. Expected an argument of type System.String, " +
+                        "got System.Int32",
+                        Run (request));
+            mock.Verify (x => x.CreateTestObject (It.IsAny<string> ()), Times.Never ());
+        }
+
+        [Test]
+        public void ExecuteCallNoArgsReturnsNull ()
+        {
+            var mock = new Mock<ITestService> (MockBehavior.Strict);
+            mock.Setup (x => x.ProcedureNoArgsReturns ()).Returns ((string)null);
+            TestService.Service = mock.Object;
+            CheckError (String.Empty, "Incorrect value returned by TestService.ProcedureNoArgsReturns. " +
+                        "Expected a value of type System.String, got null",
+                        Run (Call ("TestService", "ProcedureNoArgsReturns")));
             mock.Verify (x => x.ProcedureNoArgsReturns (), Times.Once ());
         }
 
-        /// <summary>
-        /// Test calling a service method that throws an exception
-        /// </summary>
         [Test]
-        public void HandleRequestNoArgsThrows ()
+        public void ExecuteCallNoArgsThrows ()
         {
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.Setup (x => x.ProcedureNoArgsReturns ()).Throws (new ArgumentException ("test exception"));
             TestService.Service = mock.Object;
-            Assert.Throws<RPCException> (() => Run (Req ("TestService", "ProcedureNoArgsReturns")));
+            CheckError ("ArgumentException", "test exception",
+                        Run (Call ("TestService", "ProcedureNoArgsReturns")));
             mock.Verify (x => x.ProcedureNoArgsReturns (), Times.Once ());
         }
 
-        /// <summary>
-        /// Test calling a service method with an argument and no return value
-        /// </summary>
         [Test]
-        public void HandleRequestSingleArgNoReturn ()
+        public void ExecuteCallSingleArgNoReturn ()
         {
-            var arg = Res ("foo", 42);
             var mock = new Mock<ITestService> (MockBehavior.Strict);
-            mock.Setup (x => x.ProcedureSingleArgNoReturn (It.IsAny<Response> ()))
-                .Callback ((Response x) => Assert.AreEqual (arg, x));
+            mock.Setup (x => x.ProcedureSingleArgNoReturn (It.IsAny<string> ()))
+                .Callback ((string x) => Assert.AreEqual ("foo", x));
             TestService.Service = mock.Object;
-            Run (Req ("TestService", "ProcedureSingleArgNoReturn", Arg (0, arg)));
-            mock.Verify (x => x.ProcedureSingleArgNoReturn (It.IsAny<Response> ()), Times.Once ());
+            var result = Run (Call ("TestService", "ProcedureSingleArgNoReturn", Arg (0, "foo")));
+            mock.Verify (x => x.ProcedureSingleArgNoReturn (It.IsAny<string> ()), Times.Once ());
+            CheckResultEmpty (result);
         }
 
-        /// <summary>
-        /// Test calling a service method with multiple parameters and no return
-        /// </summary>
         [Test]
-        public void HandleRequestThreeArgsNoReturn ()
+        public void ExecuteCallThreeArgsNoReturn ()
         {
-            var arg0 = Res ("foo", 42);
-            var arg1 = Req ("bar", "bar");
-            var arg2 = Res ("baz", 123);
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.Setup (x => x.ProcedureThreeArgsNoReturn (
-                It.IsAny<Response> (),
-                It.IsAny<Request> (),
-                It.IsAny<Response> ()))
-                        .Callback ((Response x,
-                                    Request y,
-                                    Response z) => {
-                Assert.AreEqual (arg0, x);
-                Assert.AreEqual (arg1, y);
-                Assert.AreEqual (arg2, z);
+                It.IsAny<string> (),
+                It.IsAny<int> (),
+                It.IsAny<string> ()))
+                        .Callback ((string x,
+                                    int y,
+                                    string z) => {
+                Assert.AreEqual ("foo", x);
+                Assert.AreEqual (42, y);
+                Assert.AreEqual ("bar", z);
             });
             TestService.Service = mock.Object;
-            Run (Req ("TestService", "ProcedureThreeArgsNoReturn",
-                Arg (0, arg0),
-                Arg (1, arg1),
-                Arg (2, arg2)));
+            var result = Run (Call ("TestService", "ProcedureThreeArgsNoReturn",
+                             Arg (0, "foo"), Arg (1, 42), Arg (2, "bar")));
             mock.Verify (x => x.ProcedureThreeArgsNoReturn (
-                It.IsAny<Response> (),
-                It.IsAny<Request> (),
-                It.IsAny<Response> ()), Times.Once ());
+                It.IsAny<string> (), It.IsAny<int> (), It.IsAny<string> ()), Times.Once ());
+            CheckResultEmpty (result);
         }
 
-        /// <summary>
-        /// Test calling a service method with an argument and no return value
-        /// </summary>
         [Test]
-        public void HandleRequestNoArgsReturn ()
+        public void ExecuteCallNoArgsReturn ()
         {
-            var expectedResponse = Res ("foo", 42);
             var mock = new Mock<ITestService> (MockBehavior.Strict);
-            mock.Setup (x => x.ProcedureNoArgsReturns ()).Returns (expectedResponse);
+            mock.Setup (x => x.ProcedureNoArgsReturns ()).Returns ("foo");
             TestService.Service = mock.Object;
-            var response = Run (Req ("TestService", "ProcedureNoArgsReturns"));
-            response.Time = 42;
+            var result = Run (Call ("TestService", "ProcedureNoArgsReturns"));
             mock.Verify (x => x.ProcedureNoArgsReturns (), Times.Once ());
-            var innerResponse = (Response)response.ReturnValue;
-            Assert.AreEqual (expectedResponse.Error, innerResponse.Error);
+            CheckResultNotEmpty (result);
+            Assert.AreEqual ("foo", (string)result.Value);
         }
 
-        /// <summary>
-        /// Test calling a service method with an argument and return value
-        /// </summary>
         [Test]
-        public void HandleRequestArgsReturn ()
+        public void ExecuteCallArgsReturn ()
         {
-            var expectedResponse = new Response { Error = "bar", Time = 42 };
             var mock = new Mock<ITestService> (MockBehavior.Strict);
-            mock.Setup (x => x.ProcedureSingleArgReturns (It.IsAny<Response> ()))
-                .Returns ((Response x) => x);
+            mock.Setup (x => x.ProcedureSingleArgReturns (It.IsAny<string> ()))
+                .Returns ((string x) => x + "bar");
             TestService.Service = mock.Object;
-            var request = Req ("TestService", "ProcedureSingleArgReturns", Arg (0, expectedResponse));
-            Response response = Run (request);
-            response.Time = 42;
-            mock.Verify (x => x.ProcedureSingleArgReturns (It.IsAny<Response> ()), Times.Once ());
-            var innerResponse = (Response)response.ReturnValue;
-            Assert.AreEqual (expectedResponse.Error, innerResponse.Error);
+            var result = Run (Call ("TestService", "ProcedureSingleArgReturns", Arg (0, "foo")));
+            mock.Verify (x => x.ProcedureSingleArgReturns (It.IsAny<string> ()), Times.Once ());
+            CheckResultNotEmpty (result);
+            Assert.AreEqual ("foobar", (string)result.Value);
         }
 
-        /// <summary>
-        /// Test calling a service method with value types for parameters
-        /// </summary>
         [Test]
-        public void HandleRequestWithValueTypes ()
-        {
-            const float arg0 = 3.14159f;
-            const string arg1 = "foo";
-            var arg2 = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF };
-            var mock = new Mock<ITestService> (MockBehavior.Strict);
-            mock.Setup (x => x.ProcedureWithValueTypes (
-                It.IsAny<float> (),
-                It.IsAny<string> (),
-                It.IsAny<byte[]> ()))
-                .Callback ((float x, string y, byte[] z) => {
-                Assert.AreEqual (arg0, x);
-                Assert.AreEqual (arg1, y);
-                Assert.AreEqual (arg2, z);
-            }).Returns (42);
-            TestService.Service = mock.Object;
-            Run (Req ("TestService", "ProcedureWithValueTypes",
-                Arg (0, arg0),
-                Arg (1, arg1),
-                Arg (2, arg2)));
-            mock.Verify (x => x.ProcedureWithValueTypes (
-                It.IsAny<float> (), It.IsAny<string> (), It.IsAny<byte[]> ()), Times.Once ());
-        }
-
-        /// <summary>
-        /// Test calling the getter for a property
-        /// </summary>
-        [Test]
-        public void HandleRequestForPropertyGetter ()
+        public void ExecuteCallForPropertyGetter ()
         {
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.Setup (x => x.PropertyWithGet).Returns ("foo");
             TestService.Service = mock.Object;
-            Response response = Run (Req ("TestService", "get_PropertyWithGet"));
-            Assert.AreEqual ("foo", (string)response.ReturnValue);
+            var result = Run (Call ("TestService", "get_PropertyWithGet"));
             mock.Verify (x => x.PropertyWithGet, Times.Once ());
+            CheckResultNotEmpty (result);
+            Assert.AreEqual ("foo", (string)result.Value);
         }
 
-        /// <summary>
-        /// Test calling the setter for a property
-        /// </summary>
         [Test]
-        public void HandleRequestForPropertySetter ()
+        public void ExecuteCallForPropertySetter ()
         {
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.SetupSet (x => x.PropertyWithSet = "foo");
             TestService.Service = mock.Object;
-            var request = Req ("TestService", "set_PropertyWithSet", Arg (0, "foo"));
-            Response response = Run (request);
-            Assert.AreEqual (String.Empty, response.Error);
+            var result = Run (Call ("TestService", "set_PropertyWithSet", Arg (0, "foo")));
+            mock.VerifySet (x => x.PropertyWithSet = "foo", Times.Once ());
+            CheckResultEmpty (result);
         }
 
-        /// <summary>
-        /// Test calling a procedure that returns a proxy object
-        /// </summary>
         [Test]
-        public void HandleRequestWithObjectReturn ()
+        public void ExecuteCallWithObjectReturn ()
         {
             var instance = new TestService.TestClass ("foo");
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.Setup (x => x.CreateTestObject ("foo")).Returns (instance);
             TestService.Service = mock.Object;
-            Response response = Run (Req ("TestService", "CreateTestObject", Arg (0, "foo")));
-            Assert.AreEqual (String.Empty, response.Error);
-            response.Time = 42;
-            Assert.IsNotNull (response.ReturnValue);
-            Assert.AreEqual (instance, (TestService.TestClass)response.ReturnValue);
+            var result = Run (Call ("TestService", "CreateTestObject", Arg (0, "foo")));
+            mock.Verify (x => x.CreateTestObject (It.IsAny<string> ()), Times.Once ());
+            CheckResultNotEmpty (result);
+            Assert.IsNotNull (result.Value);
+            Assert.AreEqual (instance, (TestService.TestClass)result.Value);
         }
 
-        /// <summary>
-        /// Test calling a procedure that takes a proxy object as a parameter
-        /// </summary>
         [Test]
-        public void HandleRequestWithObjectParameter ()
+        public void ExecuteCallWithObjectParameter ()
         {
             var instance = new TestService.TestClass ("foo");
             ObjectStore.Instance.AddInstance (instance);
@@ -281,153 +257,122 @@ namespace KRPC.Test.Service
             mock.Setup (x => x.DeleteTestObject (It.IsAny<TestService.TestClass> ()))
                 .Callback ((TestService.TestClass x) => Assert.AreSame (instance, x));
             TestService.Service = mock.Object;
-            Run (Req ("TestService", "DeleteTestObject", Arg (0, instance)));
+            var result = Run (Call ("TestService", "DeleteTestObject", Arg (0, instance)));
             mock.Verify (x => x.DeleteTestObject (It.IsAny<TestService.TestClass> ()), Times.Once ());
+            CheckResultEmpty (result);
         }
 
-        /// <summary>
-        /// Test calling a procedure with a null proxy object as a parameter, and a null proxy object return value
-        /// </summary>
         [Test]
-        public void HandleRequestWithNullObjectParameterAndReturn ()
+        public void ExecuteCallWithNullObjectParameterAndReturn ()
         {
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.Setup (x => x.EchoTestObject (It.IsAny<TestService.TestClass> ()))
                 .Callback ((TestService.TestClass x) => Assert.AreEqual (null, x))
                 .Returns ((TestService.TestClass x) => x);
             TestService.Service = mock.Object;
-            Response response = Run (Req ("TestService", "EchoTestObject", Arg (0, null)));
-            Assert.AreEqual (String.Empty, response.Error);
-            response.Time = 42;
-            Assert.IsNull (response.ReturnValue);
+            var result = Run (Call ("TestService", "EchoTestObject", Arg (0, null)));
+            //mock.Verify (x => x.EchoTestObject (It.IsAny<TestService.TestClass> ()), Times.Once ());
+            CheckResultNotEmpty (result);
+            Assert.IsNull (result.Value);
         }
 
-        /// <summary>
-        /// Test calling the method of a proxy object
-        /// </summary>
         [Test]
-        public void HandleRequestForObjectMethod ()
+        public void ExecuteCallWithNullReturnWhenNotAllowed ()
+        {
+            var mock = new Mock<ITestService> (MockBehavior.Strict);
+            mock.Setup (x => x.ReturnNullWhenNotAllowed ())
+                .Returns (() => null);
+            TestService.Service = mock.Object;
+            CheckError (String.Empty, "Incorrect value returned by TestService.ReturnNullWhenNotAllowed. " +
+                        "Expected a non-null value of type KRPC.Test.Service.TestService+TestClass, " +
+                        "got null, but the procedure is not marked as nullable.",
+                        Run (Call ("TestService", "ReturnNullWhenNotAllowed")));
+            mock.Verify (x => x.ReturnNullWhenNotAllowed (), Times.Once ());
+        }
+
+        [Test]
+        public void ExecuteCallForObjectMethod ()
         {
             var instance = new TestService.TestClass ("jeb");
-            var guid = ObjectStore.Instance.AddInstance (instance);
             const float arg = 3.14159f;
-            var request = Req ("TestService", "TestClass_FloatToString", Arg (0, guid), Arg (1, arg));
-            var response = Run (request);
-            response.Time = 42;
-            Assert.AreEqual ("jeb3.14159", (string)response.ReturnValue);
+            var result = Run (Call ("TestService", "TestClass_FloatToString", Arg (0, instance), Arg (1, arg)));
+            CheckResultNotEmpty (result);
+            Assert.AreEqual ("jeb3.14159", (string)result.Value);
         }
 
-        /// <summary>
-        /// Test calling the method of a proxy object, and pass a proxy object as a parameter
-        /// </summary>
         [Test]
-        public void HandleRequestForObjectMethodWithObjectParameter ()
+        public void ExecuteCallForObjectMethodWithObjectParameter ()
         {
             var instance = new TestService.TestClass ("bill");
             var arg = new TestService.TestClass ("bob");
-            var guid = ObjectStore.Instance.AddInstance (instance);
-            var request = Req ("TestService", "TestClass_ObjectToString", Arg (0, guid), Arg (1, arg));
-            var response = Run (request);
-            response.Time = 42;
-            Assert.AreEqual ("billbob", (string)(response.ReturnValue));
+            var result = Run (Call ("TestService", "TestClass_ObjectToString", Arg (0, instance), Arg (1, arg)));
+            CheckResultNotEmpty (result);
+            Assert.AreEqual ("billbob", (string)result.Value);
         }
 
-        /// <summary>
-        /// Test the getting a property value in a proxy object
-        /// </summary>
         [Test]
-        public void HandleRequestForClassPropertyGetter ()
+        public void ExecuteCallForClassPropertyGetter ()
         {
             var instance = new TestService.TestClass ("jeb");
             instance.IntProperty = 42;
-            var guid = ObjectStore.Instance.AddInstance (instance);
-            var request = Req ("TestService", "TestClass_get_IntProperty", Arg (0, guid));
-            var response = Run (request);
-            response.Time = 0;
-            Assert.AreEqual (String.Empty, response.Error);
-            Assert.AreEqual (42, (int)response.ReturnValue);
+            var result = Run (Call ("TestService", "TestClass_get_IntProperty", Arg (0, instance)));
+            CheckResultNotEmpty (result);
+            Assert.AreEqual (42, (int)result.Value);
         }
 
-        /// <summary>
-        /// Test setting a property value in a proxy object
-        /// </summary>
         [Test]
-        public void HandleRequestForClassPropertySetter ()
+        public void ExecuteCallForClassPropertySetter ()
         {
             var instance = new TestService.TestClass ("jeb");
             instance.IntProperty = 42;
-            var guid = ObjectStore.Instance.AddInstance (instance);
-            var request = Req ("TestService", "TestClass_set_IntProperty",
-                              Arg (0, guid), Arg (1, 1337));
-            var response = Run (request);
-            response.Time = 0;
-            Assert.AreEqual (String.Empty, response.Error);
+            var result = Run (Call ("TestService", "TestClass_set_IntProperty", Arg (0, instance), Arg (1, 1337)));
+            CheckResultEmpty (result);
             Assert.AreEqual (1337, instance.IntProperty);
         }
 
-        /// <summary>
-        /// Test calling the static method of a class
-        /// </summary>
         [Test]
-        public void HandleRequestForClassStaticMethod ()
+        public void ExecuteCallForClassStaticMethod ()
         {
-            var request = Req ("TestService", "TestClass_StaticMethod", Arg (0, "bob"));
-            var response = Run (request);
-            response.Time = 42;
-            Assert.AreEqual ("jebbob", (string)response.ReturnValue);
+            var result = Run (Call ("TestService", "TestClass_static_StaticMethod", Arg (0, "bob")));
+            CheckResultNotEmpty (result);
+            Assert.AreEqual ("jebbob", (string)result.Value);
         }
 
-        /// <summary>
-        /// Test calling a procedure with a class as the parameter,
-        /// where the class is defined in a different service
-        /// </summary>
         [Test]
-        public void HandleRequestWithClassTypeParameterFromDifferentService ()
+        public void ExecuteCallWithClassTypeParameterFromDifferentService ()
         {
             var instance = new TestService.TestClass ("jeb");
             instance.IntProperty = 42;
             ObjectStore.Instance.AddInstance (instance);
-            var request = Req ("TestService2", "ClassTypeFromOtherServiceAsParameter", Arg (0, instance));
-            var response = Run (request);
-            response.Time = 0;
-            Assert.AreEqual (String.Empty, response.Error);
-            Assert.AreEqual (42, (int)response.ReturnValue);
+            var result = Run (Call ("TestService2", "ClassTypeFromOtherServiceAsParameter", Arg (0, instance)));
+            CheckResultNotEmpty (result);
+            Assert.AreEqual (42, (int)result.Value);
         }
 
-        /// <summary>
-        /// Test calling a procedure that returns an object,
-        /// where the class of the object is defined in a different service
-        /// </summary>
         [Test]
-        public void HandleRequestWithClassTypeReturnFromDifferentService ()
+        public void ExecuteCallWithClassTypeReturnFromDifferentService ()
         {
-            var request = Req ("TestService2", "ClassTypeFromOtherServiceAsReturn", Arg (0, "jeb"));
-            var response = Run (request);
-            response.Time = 0;
-            Assert.AreEqual (String.Empty, response.Error);
-            var obj = (TestService.TestClass)response.ReturnValue;
+            var result = Run (Call ("TestService2", "ClassTypeFromOtherServiceAsReturn", Arg (0, "jeb")));
+            CheckResultNotEmpty (result);
+            Assert.IsNotNull (result.Value);
+            var obj = (TestService.TestClass)result.Value;
             Assert.AreEqual ("jeb", obj.Value);
         }
 
-        /// <summary>
-        /// Test calling a service method with an optional argument and no return value
-        /// </summary>
         [Test]
-        public void HandleRequestSingleOptionalArgNoReturn ()
+        public void ExecuteCallSingleOptionalArgNoReturn ()
         {
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.Setup (x => x.ProcedureSingleOptionalArgNoReturn (It.IsAny<string> ()))
                 .Callback ((string x) => Assert.AreEqual (x, "foo"));
             TestService.Service = mock.Object;
-            Run (Req ("TestService", "ProcedureSingleOptionalArgNoReturn"));
+            var result = Run (Call ("TestService", "ProcedureSingleOptionalArgNoReturn"));
             mock.Verify (x => x.ProcedureSingleOptionalArgNoReturn (It.IsAny<string> ()), Times.Once ());
+            CheckResultEmpty (result);
         }
 
-        /// <summary>
-        /// Test calling a service method with multiple parameters, by name with optional arguments
-        /// </summary>
         [Test]
-        public void HandleRequestThreeOptionalArgs ()
+        public void ExecuteCallThreeOptionalArgs ()
         {
             const float arg0 = 3.14159f;
             const int arg2 = 42;
@@ -444,89 +389,77 @@ namespace KRPC.Test.Service
                 Assert.AreEqual (arg2, z);
             });
             TestService.Service = mock.Object;
-            var request = Req ("TestService", "ProcedureThreeOptionalArgsNoReturn",
-                              Arg (2, arg2),
-                              Arg (0, arg0));
-            Run (request);
+            var result = Run (Call ("TestService", "ProcedureThreeOptionalArgsNoReturn",
+                             Arg (2, arg2), Arg (0, arg0)));
             mock.Verify (x => x.ProcedureThreeOptionalArgsNoReturn (
                 It.IsAny<float> (),
                 It.IsAny<string> (),
                 It.IsAny<int> ()), Times.Once ());
+            CheckResultEmpty (result);
         }
 
-        /// <summary>
-        /// Test calling a service method with an optional null argument
-        /// </summary>
         [Test]
-        public void HandleRequestOptionalNullArg ()
+        public void ExecuteCallOptionalNullArg ()
         {
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.Setup (x => x.ProcedureOptionalNullArg (It.IsAny<TestService.TestClass> ()))
                 .Callback ((TestService.TestClass x) => Assert.AreEqual (x, null));
             TestService.Service = mock.Object;
-            Run (Req ("TestService", "ProcedureOptionalNullArg"));
+            var result = Run (Call ("TestService", "ProcedureOptionalNullArg"));
             mock.Verify (x => x.ProcedureOptionalNullArg (It.IsAny<TestService.TestClass> ()), Times.Once ());
+            CheckResultEmpty (result);
         }
 
-        /// <summary>
-        /// Test calling a service method with a missing argument
-        /// </summary>
         [Test]
-        public void HandleRequestMissingArgs ()
+        public void ExecuteCallMissingArgs ()
         {
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.Setup (x => x.ProcedureThreeOptionalArgsNoReturn (
-                It.IsAny<float> (),
-                It.IsAny<string> (),
-                It.IsAny<int> ()));
+                It.IsAny<float> (), It.IsAny<string> (), It.IsAny<int> ()));
             TestService.Service = mock.Object;
-            Assert.Throws<RPCException> (() => Run (Req ("TestService", "ProcedureThreeOptionalArgsNoReturn")));
+            CheckError (String.Empty, "Argument not specified for parameter x in " +
+                        "TestService.ProcedureThreeOptionalArgsNoReturn",
+                        Run (Call ("TestService", "ProcedureThreeOptionalArgsNoReturn")));
+            mock.Verify (x => x.ProcedureThreeOptionalArgsNoReturn (
+                It.IsAny<float> (), It.IsAny<string> (), It.IsAny<int> ()), Times.Never ());
         }
 
-        /// <summary>
-        /// Test calling a service method with an argument that is a C# enumeration
-        /// </summary>
         [Test]
-        public void HandleRequestSingleEnumArgNoReturn ()
+        public void ExecuteCallSingleEnumArgNoReturn ()
         {
             var arg = TestService.TestEnum.Y;
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.Setup (x => x.ProcedureEnumArg (It.IsAny<TestService.TestEnum> ()))
                 .Callback ((TestService.TestEnum x) => Assert.AreEqual (TestService.TestEnum.Y, x));
             TestService.Service = mock.Object;
-            var request = Req ("TestService", "ProcedureEnumArg", Arg (0, arg));
-            Run (request);
+            var result = Run (Call ("TestService", "ProcedureEnumArg", Arg (0, arg)));
             mock.Verify (x => x.ProcedureEnumArg (It.IsAny<TestService.TestEnum> ()), Times.Once ());
+            CheckResultEmpty (result);
         }
 
-        /// <summary>
-        /// Test calling a service method that returns a C# enumeration
-        /// </summary>
         [Test]
-        public void HandleRequestNoArgEnumReturn ()
+        public void ExecuteCallNoArgEnumReturn ()
         {
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.Setup (x => x.ProcedureEnumReturn ()).Returns (TestService.TestEnum.Z);
             TestService.Service = mock.Object;
-            var response = Run (Req ("TestService", "ProcedureEnumReturn"));
-            response.Time = 0;
-            Assert.AreEqual (String.Empty, response.Error);
-            Assert.AreEqual (TestService.TestEnum.Z, response.ReturnValue);
+            var result = Run (Call ("TestService", "ProcedureEnumReturn"));
             mock.Verify (x => x.ProcedureEnumReturn (), Times.Once ());
+            CheckResultNotEmpty (result);
+            Assert.AreEqual (TestService.TestEnum.Z, (TestService.TestEnum)result.Value);
         }
 
-        /// <summary>
-        /// Test calling a service method with an argument that is an invalid value for a C# enumeration
-        /// </summary>
         [Test]
-        public void HandleRequestSingleInvalidEnumArgNoReturn ()
+        public void ExecuteCallSingleInvalidEnumArgNoReturn ()
         {
             const int arg = 9999;
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.Setup (x => x.ProcedureEnumArg (It.IsAny<TestService.TestEnum> ()));
             TestService.Service = mock.Object;
-            var request = Req ("TestService", "ProcedureTestEnumArg", Arg (0, arg));
-            Assert.Throws<RPCException> (() => Run (request));
+            CheckError (String.Empty, "Incorrect argument type for parameter x in TestService.ProcedureEnumArg. " +
+                        "Expected an argument of type KRPC.Test.Service.TestService+TestEnum, got System.Int32",
+                        Run (Call ("TestService", "ProcedureEnumArg", Arg (0, arg))));
+            mock.Verify (x => x.ProcedureEnumArg (It.IsAny<TestService.TestEnum> ()), Times.Never ());
         }
 
         int BlockingProcedureNoReturnFnCount;
@@ -536,8 +469,7 @@ namespace KRPC.Test.Service
             BlockingProcedureNoReturnFnCount++;
             if (n == 0)
                 return;
-            else
-                throw new YieldException (new ParameterizedContinuationVoid<int> (BlockingProcedureNoReturnFn, n - 1));
+            throw new YieldException (new ParameterizedContinuationVoid<int> (BlockingProcedureNoReturnFn, n - 1));
         }
 
         int BlockingProcedureReturnsFnCount;
@@ -547,13 +479,9 @@ namespace KRPC.Test.Service
             BlockingProcedureReturnsFnCount++;
             if (n == 0)
                 return sum;
-            else
-                throw new YieldException (new ParameterizedContinuation<int,int,int> (BlockingProcedureReturnsFn, n - 1, sum + n));
+            throw new YieldException (new ParameterizedContinuation<int,int,int> (BlockingProcedureReturnsFn, n - 1, sum + n));
         }
 
-        /// <summary>
-        /// Test calling a service method that blocks, takes arguments and returns nothing
-        /// </summary>
         [Test]
         public void HandleBlockingRequestArgsNoReturn ()
         {
@@ -562,27 +490,23 @@ namespace KRPC.Test.Service
             mock.Setup (x => x.BlockingProcedureNoReturn (It.IsAny<int> ()))
                 .Callback ((int n) => BlockingProcedureNoReturnFn (n));
             TestService.Service = mock.Object;
-            var request = Req ("TestService", "BlockingProcedureNoReturn", Arg (0, num));
+            var call = Call ("TestService", "BlockingProcedureNoReturn", Arg (0, num));
             BlockingProcedureNoReturnFnCount = 0;
-            Response response = null;
-            Continuation<Response> continuation = new RequestContinuation (null, request);
-            while (response == null) {
+            ProcedureResult result = null;
+            Continuation<ProcedureResult> continuation = new ProcedureCallContinuation (call);
+            while (result == null) {
                 try {
-                    response = continuation.Run ();
+                    result = continuation.Run ();
                 } catch (YieldException e) {
-                    continuation = (Continuation<Response>)e.Continuation;
+                    continuation = (Continuation<ProcedureResult>)e.Continuation;
                 }
             }
-            response.Time = 0;
-            Assert.AreEqual (String.Empty, response.Error);
-            // Verify the KRPCProcedure is called once, but the handler function is called multiple times
+            // Verify the procedure is called once, but the handler function is called multiple times
             mock.Verify (x => x.BlockingProcedureNoReturn (It.IsAny<int> ()), Times.Once ());
             Assert.AreEqual (num + 1, BlockingProcedureNoReturnFnCount);
+            CheckResultEmpty (result);
         }
 
-        /// <summary>
-        /// Test calling a service method that blocks, takes arguments and returns a value
-        /// </summary>
         [Test]
         public void HandleBlockingRequestArgsReturns ()
         {
@@ -592,46 +516,38 @@ namespace KRPC.Test.Service
             mock.Setup (x => x.BlockingProcedureReturns (It.IsAny<int> (), It.IsAny<int> ()))
                 .Returns ((int n, int sum) => BlockingProcedureReturnsFn (n, sum));
             TestService.Service = mock.Object;
-            var request = Req ("TestService", "BlockingProcedureReturns", Arg (0, num));
+            var call = Call ("TestService", "BlockingProcedureReturns", Arg (0, num));
             BlockingProcedureReturnsFnCount = 0;
-            Response response = null;
-            Continuation<Response> continuation = new RequestContinuation (null, request);
-            while (response == null) {
+            ProcedureResult result = null;
+            Continuation<ProcedureResult> continuation = new ProcedureCallContinuation (call);
+            while (result == null) {
                 try {
-                    response = continuation.Run ();
+                    result = continuation.Run ();
                 } catch (YieldException e) {
-                    continuation = (Continuation<Response>)e.Continuation;
+                    continuation = (Continuation<ProcedureResult>)e.Continuation;
                 }
             }
-            response.Time = 0;
-            Assert.AreEqual (String.Empty, response.Error);
-            Assert.AreEqual (expectedResult, (int)response.ReturnValue);
             // Verify the KRPCProcedure is called once, but the handler function is called multiple times
             mock.Verify (x => x.BlockingProcedureReturns (It.IsAny<int> (), It.IsAny<int> ()), Times.Once ());
             Assert.AreEqual (num + 1, BlockingProcedureReturnsFnCount);
+            CheckResultNotEmpty (result);
+            Assert.AreEqual (expectedResult, (int)result.Value);
         }
 
-        /// <summary>
-        /// Test calling a service method that takes a list as an argument and returns the same list
-        /// </summary>
         [Test]
         public void HandleEchoList ()
         {
             var list = new List<string> { "jeb", "bob", "bill" };
             var mock = new Mock<ITestService> (MockBehavior.Strict);
-            mock.Setup (x => x.EchoList (It.IsAny<IList<string>> ()))
-                .Returns ((IList<string> x) => x);
+            mock.Setup (x => x.EchoList (It.IsAny<IList<string>> ())).Returns ((IList<string> x) => x);
             TestService.Service = mock.Object;
-            var response = Run (Req ("TestService", "EchoList", Arg (0, list)));
-            response.Time = 0;
-            Assert.AreEqual (String.Empty, response.Error);
-            CollectionAssert.AreEqual (list, (IList<string>)response.ReturnValue);
+            var result = Run (Call ("TestService", "EchoList", Arg (0, list)));
             mock.Verify (x => x.EchoList (It.IsAny<IList<string>> ()), Times.Once ());
+            CheckResultNotEmpty (result);
+            Assert.IsNotNull (result.Value);
+            CollectionAssert.AreEqual (list, (IList<string>)result.Value);
         }
 
-        /// <summary>
-        /// Test calling a service method that takes a dictionary as an argument and returns the same dictionary
-        /// </summary>
         [Test]
         public void HandleEchoDictionary ()
         {
@@ -640,73 +556,60 @@ namespace KRPC.Test.Service
             mock.Setup (x => x.EchoDictionary (It.IsAny<IDictionary<int,string>> ()))
                 .Returns ((IDictionary<int,string> x) => x);
             TestService.Service = mock.Object;
-            var response = Run (Req ("TestService", "EchoDictionary", Arg (0, dictionary)));
-            response.Time = 0;
-            Assert.AreEqual (String.Empty, response.Error);
-            CollectionAssert.AreEquivalent (dictionary, (IDictionary<int,string>)response.ReturnValue);
+            var result = Run (Call ("TestService", "EchoDictionary", Arg (0, dictionary)));
             mock.Verify (x => x.EchoDictionary (It.IsAny<IDictionary<int,string>> ()), Times.Once ());
+            CheckResultNotEmpty (result);
+            Assert.IsNotNull (result.Value);
+            CollectionAssert.AreEquivalent (dictionary, (IDictionary<int,string>)result.Value);
         }
 
-        /// <summary>
-        /// Test calling a service method that takes a set as an argument and returns the same set
-        /// </summary>
         [Test]
         public void HandleEchoSet ()
         {
             var set = new HashSet<int> { 345, 723, 112 };
             var mock = new Mock<ITestService> (MockBehavior.Strict);
-            mock.Setup (x => x.EchoSet (It.IsAny<HashSet<int>> ()))
-                .Returns ((HashSet<int> x) => x);
+            mock.Setup (x => x.EchoSet (It.IsAny<HashSet<int>> ())).Returns ((HashSet<int> x) => x);
             TestService.Service = mock.Object;
-            var response = Run (Req ("TestService", "EchoSet", Arg (0, set)));
-            response.Time = 0;
-            Assert.AreEqual (String.Empty, response.Error);
-            CollectionAssert.AreEqual (set, (HashSet<int>)response.ReturnValue);
+            var result = Run (Call ("TestService", "EchoSet", Arg (0, set)));
             mock.Verify (x => x.EchoSet (It.IsAny<HashSet<int>> ()), Times.Once ());
+            CheckResultNotEmpty (result);
+            Assert.IsNotNull (result.Value);
+            CollectionAssert.AreEqual (set, (HashSet<int>)result.Value);
         }
 
-        /// <summary>
-        /// Test calling a service method that takes a tuple as an argument and returns the same tuple
-        /// </summary>
         [Test]
         public void HandleEchoTuple ()
         {
-            var tuple = KRPC.Utils.Tuple.Create (42, false);
+            var tuple = global::KRPC.Utils.Tuple.Create (42, false);
             var mock = new Mock<ITestService> (MockBehavior.Strict);
-            mock.Setup (x => x.EchoTuple (It.IsAny<KRPC.Utils.Tuple<int,bool>> ()))
-                .Returns ((KRPC.Utils.Tuple<int,bool> x) => x);
+            mock.Setup (x => x.EchoTuple (It.IsAny<global::KRPC.Utils.Tuple<int,bool>> ()))
+                .Returns ((global::KRPC.Utils.Tuple<int,bool> x) => x);
             TestService.Service = mock.Object;
-            var response = Run (Req ("TestService", "EchoTuple", Arg (0, tuple)));
-            response.Time = 0;
-            Assert.AreEqual (String.Empty, response.Error);
-            Assert.AreEqual (tuple, (KRPC.Utils.Tuple<int,bool>)response.ReturnValue);
-            mock.Verify (x => x.EchoTuple (It.IsAny<KRPC.Utils.Tuple<int,bool>> ()), Times.Once ());
+            var result = Run (Call ("TestService", "EchoTuple", Arg (0, tuple)));
+            mock.Verify (x => x.EchoTuple (It.IsAny<global::KRPC.Utils.Tuple<int,bool>> ()), Times.Once ());
+            CheckResultNotEmpty (result);
+            Assert.IsNotNull (result.Value);
+            Assert.AreEqual (tuple, (global::KRPC.Utils.Tuple<int,bool>)result.Value);
         }
 
-        /// <summary>
-        /// Test calling a service method that takes a nested collection as an argument and returns the same collection
-        /// </summary>
         [Test]
         public void HandleEchoNestedCollection ()
         {
-            var list0 = new List<String> { "jeb", "bob" };
-            var list1 = new List<String> ();
-            var list2 = new List<String> { "bill", "edzor" };
+            var list0 = new List<string> { "jeb", "bob" };
+            var list1 = new List<string> ();
+            var list2 = new List<string> { "bill", "edzor" };
             var collection = new Dictionary<int, IList<string>> { { 0, list0 }, { 1, list1 }, { 2, list2 } };
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.Setup (x => x.EchoNestedCollection (It.IsAny<IDictionary<int,IList<string>>> ()))
                 .Returns ((IDictionary<int,IList<string>> x) => x);
             TestService.Service = mock.Object;
-            var response = Run (Req ("TestService", "EchoNestedCollection", Arg (0, collection)));
-            response.Time = 0;
-            Assert.AreEqual (String.Empty, response.Error);
-            CollectionAssert.AreEqual (collection, (IDictionary<int, IList<string>>)response.ReturnValue);
+            var result = Run (Call ("TestService", "EchoNestedCollection", Arg (0, collection)));
             mock.Verify (x => x.EchoNestedCollection (It.IsAny<IDictionary<int,IList<string>>> ()), Times.Once ());
+            CheckResultNotEmpty (result);
+            Assert.IsNotNull (result.Value);
+            CollectionAssert.AreEqual (collection, (IDictionary<int, IList<string>>)result.Value);
         }
 
-        /// <summary>
-        /// Test calling a service method that takes a list of objects as an argument and returns the same list
-        /// </summary>
         [Test]
         public void HandleEchoListOfObjects ()
         {
@@ -718,25 +621,185 @@ namespace KRPC.Test.Service
             mock.Setup (x => x.EchoListOfObjects (It.IsAny<IList<TestService.TestClass>> ()))
                 .Returns ((IList<TestService.TestClass> x) => x);
             TestService.Service = mock.Object;
-            var response = Run (Req ("TestService", "EchoListOfObjects", Arg (0, list)));
-            response.Time = 0;
-            Assert.AreEqual (String.Empty, response.Error);
-            CollectionAssert.AreEqual (list, (IList<TestService.TestClass>)response.ReturnValue);
+            var result = Run (Call ("TestService", "EchoListOfObjects", Arg (0, list)));
             mock.Verify (x => x.EchoListOfObjects (It.IsAny<IList<TestService.TestClass>> ()), Times.Once ());
+            CheckResultNotEmpty (result);
+            Assert.IsNotNull (result.Value);
+            CollectionAssert.AreEqual (list, (IList<TestService.TestClass>)result.Value);
         }
 
         /// <summary>
-        /// Test calling a service method that is not active in the current game mode
+        /// Test calling a service method that takes an optional tuple as an argument
         /// </summary>
         [Test]
-        public void HandleRequestWrongGameMode ()
+        public void HandleOptionalTupleNotSpecified ()
+        {
+            var mock = new Mock<ITestService> (MockBehavior.Strict);
+            mock.Setup (x => x.TupleDefault (It.IsAny<global::KRPC.Utils.Tuple<int,bool>> ()))
+                .Returns ((global::KRPC.Utils.Tuple<int,bool> x) => x);
+            TestService.Service = mock.Object;
+            var result = Run (Call ("TestService", "TupleDefault"));
+            mock.Verify (x => x.TupleDefault (It.IsAny<global::KRPC.Utils.Tuple<int,bool>> ()), Times.Once ());
+            CheckResultNotEmpty (result);
+            Assert.AreEqual (TestService.CreateTupleDefault.Create (), result.Value);
+        }
+
+        /// <summary>
+        /// Test calling a service method that is not available in the current game mode
+        /// </summary>
+        [Test]
+        public void ExecuteCallWrongGameMode ()
         {
             CallContext.SetGameScene (GameScene.TrackingStation);
             var mock = new Mock<ITestService> (MockBehavior.Strict);
             mock.Setup (x => x.ProcedureNoArgsNoReturn ());
             TestService.Service = mock.Object;
-            Assert.Throws<RPCException> (() => Run (Req ("TestService", "ProcedureNoArgsNoReturn")));
+            CheckError (String.Empty, "Procedure not available in game scene 'TrackingStation'",
+                Run (Call ("TestService", "ProcedureNoArgsNoReturn")));
             mock.Verify (x => x.ProcedureNoArgsNoReturn (), Times.Never ());
+        }
+
+        /// <summary>
+        /// Test that a service procedure inherits the game mode its available in
+        /// </summary>
+        [Test]
+        public void ProcedureGameModeInheritedFromService ()
+        {
+            CallContext.SetGameScene (GameScene.TrackingStation);
+            var mock = new Mock<ITestService> (MockBehavior.Strict);
+            mock.Setup (x => x.ProcedureAvailableInInheritedGameScene ());
+            TestService.Service = mock.Object;
+            CheckError (String.Empty, "Procedure not available in game scene 'TrackingStation'",
+                Run (Call ("TestService", "ProcedureAvailableInInheritedGameScene")));
+            mock.Verify (x => x.ProcedureAvailableInInheritedGameScene (), Times.Never ());
+            CallContext.SetGameScene (GameScene.Flight);
+            Run (Call ("TestService", "ProcedureAvailableInInheritedGameScene"));
+            mock.Verify (x => x.ProcedureAvailableInInheritedGameScene (), Times.Once ());
+        }
+
+        /// <summary>
+        /// Test that a service procedure can override the inherited the game mode its available in
+        /// </summary>
+        [Test]
+        public void ProcedureGameModeSpecifiedInAttribute ()
+        {
+            CallContext.SetGameScene (GameScene.Flight);
+            var mock = new Mock<ITestService> (MockBehavior.Strict);
+            mock.Setup (x => x.ProcedureAvailableInSpecifiedGameScene ());
+            TestService.Service = mock.Object;
+            CheckError (String.Empty, "Procedure not available in game scene 'Flight'",
+                Run (Call ("TestService", "ProcedureAvailableInSpecifiedGameScene")));
+            mock.Verify (x => x.ProcedureAvailableInSpecifiedGameScene (), Times.Never ());
+            CallContext.SetGameScene (GameScene.EditorVAB);
+            Run (Call ("TestService", "ProcedureAvailableInSpecifiedGameScene"));
+            mock.Verify (x => x.ProcedureAvailableInSpecifiedGameScene (), Times.Once ());
+        }
+
+        /// <summary>
+        /// Test that a service property inherits the game mode its available in
+        /// </summary>
+        [Test]
+        public void PropertyGameModeInheritedFromService ()
+        {
+            CallContext.SetGameScene (GameScene.TrackingStation);
+            var mock = new Mock<ITestService> (MockBehavior.Strict);
+            mock.Setup (x => x.PropertyAvailableInInheritedGameScene).Returns("foo");
+            TestService.Service = mock.Object;
+            CheckError (String.Empty, "Procedure not available in game scene 'TrackingStation'",
+                Run (Call ("TestService", "get_PropertyAvailableInInheritedGameScene")));
+            mock.Verify (x => x.PropertyAvailableInInheritedGameScene, Times.Never ());
+            CallContext.SetGameScene (GameScene.Flight);
+            Run (Call ("TestService", "get_PropertyAvailableInInheritedGameScene"));
+            mock.Verify (x => x.PropertyAvailableInInheritedGameScene, Times.Once ());
+        }
+
+        /// <summary>
+        /// Test that a service property can override the inherited the game mode its available in
+        /// </summary>
+        [Test]
+        public void PropertyGameModeSpecifiedInAttribute ()
+        {
+            CallContext.SetGameScene (GameScene.Flight);
+            var mock = new Mock<ITestService> (MockBehavior.Strict);
+            mock.Setup (x => x.PropertyAvailableInSpecifiedGameScene).Returns("foo");
+            TestService.Service = mock.Object;
+            CheckError (String.Empty, "Procedure not available in game scene 'Flight'",
+                Run (Call ("TestService", "get_PropertyAvailableInSpecifiedGameScene")));
+            mock.Verify (x => x.PropertyAvailableInSpecifiedGameScene, Times.Never ());
+            CallContext.SetGameScene (GameScene.EditorVAB);
+            Run (Call ("TestService", "get_PropertyAvailableInSpecifiedGameScene"));
+            mock.Verify (x => x.PropertyAvailableInSpecifiedGameScene, Times.Once ());
+        }
+
+        /// <summary>
+        /// Test that a class method inherits the game mode its available in
+        /// </summary>
+        [Test]
+        public void ClassMethodGameModeInheritedFromService ()
+        {
+            var instance = new TestService.TestClass ("jeb");
+            CallContext.SetGameScene (GameScene.TrackingStation);
+            CheckError (String.Empty, "Procedure not available in game scene 'TrackingStation'",
+                Run (Call ("TestService", "TestClass_MethodAvailableInInheritedGameScene", Arg(0, instance))));
+            CallContext.SetGameScene (GameScene.Flight);
+            var result = Run (Call ("TestService", "TestClass_MethodAvailableInInheritedGameScene", Arg(0, instance)));
+            CheckResultNotEmpty (result);
+            Assert.AreEqual ("foo", result.Value);
+        }
+
+        /// <summary>
+        /// Test that a class method can override the inherited the game mode its available in
+        /// </summary>
+        [Test]
+        public void ClassMethodGameModeSpecifiedInAttribute ()
+        {
+            var instance = new TestService.TestClass ("jeb");
+            CallContext.SetGameScene (GameScene.Flight);
+            CheckError (String.Empty, "Procedure not available in game scene 'Flight'",
+                Run (Call ("TestService", "TestClass_MethodAvailableInSpecifiedGameScene", Arg(0, instance))));
+            CallContext.SetGameScene (GameScene.EditorVAB);
+            var result = Run (Call ("TestService", "TestClass_MethodAvailableInSpecifiedGameScene", Arg(0, instance)));
+            CheckResultNotEmpty (result);
+            Assert.AreEqual ("foo", result.Value);
+        }
+
+        /// <summary>
+        /// Test that a class property inherits the game mode its available in
+        /// </summary>
+        [Test]
+        public void ClassPropertyGameModeInheritedFromService ()
+        {
+            var instance = new TestService.TestClass ("jeb");
+            CallContext.SetGameScene (GameScene.TrackingStation);
+            CheckError (String.Empty, "Procedure not available in game scene 'TrackingStation'",
+                Run (Call ("TestService", "TestClass_get_ClassPropertyAvailableInInheritedGameScene", Arg(0, instance))));
+            CallContext.SetGameScene (GameScene.SpaceCenter);
+            var result = Run (Call ("TestService", "TestClass_get_ClassPropertyAvailableInInheritedGameScene", Arg(0, instance)));
+            CheckResultNotEmpty (result);
+            Assert.AreEqual ("foo", result.Value);
+            CallContext.SetGameScene (GameScene.Flight);
+            result = Run (Call ("TestService", "TestClass_get_ClassPropertyAvailableInInheritedGameScene", Arg(0, instance)));
+            CheckResultNotEmpty (result);
+            Assert.AreEqual ("foo", result.Value);
+        }
+
+        /// <summary>
+        /// Test that a class property can override the inherited the game mode its available in
+        /// </summary>
+        [Test]
+        public void ClassPropertyGameModeSpecifiedInAttribute ()
+        {
+            var instance = new TestService.TestClass ("jeb");
+            CallContext.SetGameScene (GameScene.Flight);
+            CheckError (String.Empty, "Procedure not available in game scene 'Flight'",
+                Run (Call ("TestService", "TestClass_get_ClassPropertyAvailableInSpecifiedGameScene", Arg(0, instance))));
+            CallContext.SetGameScene (GameScene.SpaceCenter);
+            CheckError (String.Empty, "Procedure not available in game scene 'SpaceCenter'",
+                Run (Call ("TestService", "TestClass_get_ClassPropertyAvailableInSpecifiedGameScene", Arg(0, instance))));
+            CallContext.SetGameScene (GameScene.EditorVAB);
+            var result = Run (Call ("TestService", "TestClass_get_ClassPropertyAvailableInSpecifiedGameScene", Arg(0, instance)));
+            CheckResultNotEmpty (result);
+            Assert.AreEqual ("foo", result.Value);
         }
     }
 }

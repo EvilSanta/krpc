@@ -1,5 +1,5 @@
 .. default-domain:: {{ domain.sphinxname }}
-.. highlight:: {{ domain.name }}
+.. highlight:: {{ domain.highlight }}
 {{ domain.currentmodule('SpaceCenter') }}
 {% import domain.macros as macros with context %}
 
@@ -76,6 +76,12 @@ The following classes provide functionality for specific types of part.
 .. contents::
    :local:
 
+Antenna
+^^^^^^^
+
+{{ macros.class(services['SpaceCenter'].classes['Antenna']) }}
+{{ macros.enumeration(services['SpaceCenter'].enumerations['AntennaState']) }}
+
 Cargo Bay
 ^^^^^^^^^
 
@@ -132,17 +138,11 @@ Intake
 
 {{ macros.class(services['SpaceCenter'].classes['Intake']) }}
 
-Landing Gear
-^^^^^^^^^^^^
+Leg
+^^^
 
-{{ macros.class(services['SpaceCenter'].classes['LandingGear']) }}
-{{ macros.enumeration(services['SpaceCenter'].enumerations['LandingGearState']) }}
-
-Landing Leg
-^^^^^^^^^^^
-
-{{ macros.class(services['SpaceCenter'].classes['LandingLeg']) }}
-{{ macros.enumeration(services['SpaceCenter'].enumerations['LandingLegState']) }}
+{{ macros.class(services['SpaceCenter'].classes['Leg']) }}
+{{ macros.enumeration(services['SpaceCenter'].enumerations['LegState']) }}
 
 Launch Clamp
 ^^^^^^^^^^^^
@@ -204,6 +204,13 @@ Thruster
 
 {{ macros.class(services['SpaceCenter'].classes['Thruster']) }}
 
+Wheel
+^^^^^
+
+{{ macros.class(services['SpaceCenter'].classes['Wheel']) }}
+{{ macros.enumeration(services['SpaceCenter'].enumerations['WheelState']) }}
+{{ macros.enumeration(services['SpaceCenter'].enumerations['MotorState']) }}
+
 .. _{{ domain.name }}-api-parts-trees-of-parts:
 
 Trees of Parts
@@ -249,7 +256,7 @@ returns {{ domain.code('null') }}.
 The following {{ domain.prettyname }} example uses these attributes to perform a
 depth-first traversal over all of the parts in a vessel:
 
-.. literalinclude:: /scripts/TreeTraversal.{{ domain.codeext }}
+.. literalinclude:: /scripts/services/space-center/TreeTraversal.{{ domain.codeext }}
 
 When this code is execute using the craft file for the example vessel pictured
 above, the following is printed out::
@@ -296,7 +303,7 @@ consider to be *axially* attached to nothing.
 The following {{ domain.prettyname }} example does a depth-first traversal as before,
 but also prints out the attachment mode used by the part:
 
-.. literalinclude:: /scripts/AttachmentModes.{{ domain.codeext }}
+.. literalinclude:: /scripts/services/space-center/AttachmentModes.{{ domain.codeext }}
 
 When this code is execute using the craft file for the example vessel pictured
 above, the following is printed out::

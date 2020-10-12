@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -35,7 +34,7 @@ namespace KRPC.UI
 
         public static void Separator (GUIStyle style, params GUILayoutOption[] options)
         {
-            GUILayout.Label (String.Empty, style, options);
+            GUILayout.Label (string.Empty, style, options);
         }
 
         public static GUIStyle LightStyle ()
@@ -44,22 +43,26 @@ namespace KRPC.UI
             style.active = HighLogic.Skin.toggle.normal;
             style.focused = HighLogic.Skin.toggle.normal;
             style.hover = HighLogic.Skin.toggle.normal;
-            float size = style.lineHeight;
-            style.fixedWidth = size;
-            style.fixedHeight = size;
-            int offset = (int)(-0.8 * size);
-            style.border = new RectOffset (offset - 4, offset + 4, offset + 4, offset - 4);
+            SetLightStyleSize (style, style.lineHeight);
             style.padding = new RectOffset (0, 0, 0, 0);
             style.overflow = new RectOffset (0, 0, 0, 0);
-            style.margin = new RectOffset (4, 0, 0, 0);
             style.imagePosition = ImagePosition.ImageOnly;
             style.clipping = TextClipping.Overflow;
             return style;
         }
 
+        public static void SetLightStyleSize (GUIStyle style, float size)
+        {
+            style.fixedWidth = size;
+            style.fixedHeight = size;
+            var offset = (int)(-0.8 * size);
+            style.border = new RectOffset (offset - 4, offset + 4, offset + 4, offset - 4);
+            style.margin = new RectOffset (4, 0, 0, 0);
+        }
+
         public static void Light (bool enabled, GUIStyle style, params GUILayoutOption[] options)
         {
-            GUILayout.Toggle (enabled, String.Empty, style, options);
+            GUILayout.Toggle (enabled, string.Empty, style, options);
         }
 
         public static GUIStyle ComboOptionsStyle ()
@@ -114,7 +117,7 @@ namespace KRPC.UI
             if (Event.current.type == EventType.Repaint) {
                 var position = GUILayoutUtility.GetLastRect ();
                 // Convert from relative to absolute coordinates
-                //TODO: ugly hack...
+                // TODO: ugly hack...
                 Vector2 mousePosition = Input.mousePosition;
                 mousePosition.y = Screen.height - mousePosition.y;
                 Vector2 clippedMousePos = Event.current.mousePosition;
@@ -132,8 +135,8 @@ namespace KRPC.UI
             if (ComboBoxWindow.Instance.Caller == caller && ComboBoxWindow.Instance.SelectedOption != -1) {
                 ComboBoxWindow.Instance.Hide ();
                 return ComboBoxWindow.Instance.SelectedOption;
-            } else
-                return selectedItem;
+            }
+            return selectedItem;
         }
 
         sealed class ComboBoxWindow : Window
@@ -157,7 +160,7 @@ namespace KRPC.UI
 
             public static void MainDestroy ()
             {
-                UnityEngine.Object.Destroy (Instance);
+                Destroy (Instance);
             }
 
             public static void MainUpdateGUI ()
@@ -170,14 +173,14 @@ namespace KRPC.UI
 
             protected override void Init ()
             {
-                Title = String.Empty;
+                Title = string.Empty;
                 Visible = false;
                 Style.border.top = Style.border.bottom;
                 Style.padding.top = Style.padding.bottom;
                 stalePosition = true;
             }
 
-            protected override void Draw ()
+            protected override void Draw (bool needRescale)
             {
                 if (Options != null) {
                     int selectedOption = GUILayout.SelectionGrid (-1, Options.ToArray (), 1, OptionStyle);

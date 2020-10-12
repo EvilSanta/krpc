@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using KRPC.Service.Attributes;
 using KRPC.SpaceCenter.ExtensionMethods;
@@ -91,7 +92,8 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// The acceleration due to gravity at sea level (mean altitude) on the body, in <math>m/s^2</math>.
+        /// The acceleration due to gravity at sea level (mean altitude) on the body,
+        /// in <math>m/s^2</math>.
         /// </summary>
         [KRPCProperty]
         public float SurfaceGravity {
@@ -115,6 +117,24 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
+        /// The current rotation angle of the body, in radians.
+        /// A value between 0 and <math>2\pi</math>
+        /// </summary>
+        [KRPCProperty]
+        public double RotationAngle {
+            get { return GeometryExtensions.ToRadians (GeometryExtensions.ClampAngle360 (InternalBody.rotationAngle)); }
+        }
+
+        /// <summary>
+        /// The initial rotation angle of the body (at UT 0), in radians.
+        /// A value between 0 and <math>2\pi</math>
+        /// </summary>
+        [KRPCProperty]
+        public double InitialRotation {
+            get { return GeometryExtensions.ToRadians (GeometryExtensions.ClampAngle360 (InternalBody.initialRotation)); }
+        }
+
+        /// <summary>
         /// The equatorial radius of the body, in meters.
         /// </summary>
         [KRPCProperty]
@@ -123,24 +143,42 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// The height of the surface relative to mean sea level at the given position,
-        /// in meters. When over water this is equal to 0.
+        /// The height of the surface relative to mean sea level, in meters,
+        /// at the given position. When over water this is equal to 0.
         /// </summary>
-        /// <param name="latitude">Latitude in degrees</param>
-        /// <param name="longitude">Longitude in degrees</param>
+        /// <param name="latitude">Latitude in degrees.</param>
+        /// <param name="longitude">Longitude in degrees.</param>
         [KRPCMethod]
         public double SurfaceHeight (double latitude, double longitude)
         {
-            return Math.Max (0, BedrockHeight (latitude, longitude));
+            var alt = Math.Max (0, BedrockHeight (latitude, longitude));
+            // Using raycast to find real surface height.
+            const double raySource = 1000;
+            const double raySecondPoint = 500;
+            Vector3d rayCastStart = InternalBody.GetWorldSurfacePosition(latitude, longitude, alt + raySource);
+            Vector3d rayCastStop = InternalBody.GetWorldSurfacePosition(latitude, longitude, alt + raySecondPoint);
+            RaycastHit hit;
+            //Casting a ray on the surface (layer 15 in KSP).
+            if (Physics.Raycast(rayCastStart, (rayCastStop - rayCastStart), out hit, float.MaxValue, 1 << 15))
+
+            {
+                // Ensure hit is on the topside of planet, near the rayCastStart, not on the far side.
+                if (Mathf.Abs(hit.distance) < 3000)
+                {
+                    // Okay, a hit was found, use it instead of PQS alt:
+                    alt = alt + raySource - hit.distance;
+                }
+            }
+            return alt;
         }
 
         /// <summary>
-        /// The height of the surface relative to mean sea level at the given position,
-        /// in meters. When over water, this is the height of the sea-bed and is therefore a
-        /// negative value.
+        /// The height of the surface relative to mean sea level, in meters,
+        /// at the given position. When over water, this is the height
+        /// of the sea-bed and is therefore  negative value.
         /// </summary>
-        /// <param name="latitude">Latitude in degrees</param>
-        /// <param name="longitude">Longitude in degrees</param>
+        /// <param name="latitude">Latitude in degrees.</param>
+        /// <param name="longitude">Longitude in degrees.</param>
         [KRPCMethod]
         public double BedrockHeight (double latitude, double longitude)
         {
@@ -157,11 +195,13 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// The position at mean sea level at the given latitude and longitude, in the given reference frame.
+        /// The position at mean sea level at the given latitude and longitude,
+        /// in the given reference frame.
         /// </summary>
-        /// <param name="latitude">Latitude in degrees</param>
-        /// <param name="longitude">Longitude in degrees</param>
-        /// <param name="referenceFrame">Reference frame for the returned position vector</param>
+        /// <returns>Position as a vector.</returns>
+        /// <param name="latitude">Latitude in degrees.</param>
+        /// <param name="longitude">Longitude in degrees.</param>
+        /// <param name="referenceFrame">Reference frame for the returned position vector.</param>
         [KRPCMethod]
         public Tuple3 MSLPosition (double latitude, double longitude, ReferenceFrame referenceFrame)
         {
@@ -172,9 +212,10 @@ namespace KRPC.SpaceCenter.Services
         /// The position of the surface at the given latitude and longitude, in the given
         /// reference frame. When over water, this is the position of the surface of the water.
         /// </summary>
-        /// <param name="latitude">Latitude in degrees</param>
-        /// <param name="longitude">Longitude in degrees</param>
-        /// <param name="referenceFrame">Reference frame for the returned position vector</param>
+        /// <returns>Position as a vector.</returns>
+        /// <param name="latitude">Latitude in degrees.</param>
+        /// <param name="longitude">Longitude in degrees.</param>
+        /// <param name="referenceFrame">Reference frame for the returned position vector.</param>
         [KRPCMethod]
         public Tuple3 SurfacePosition (double latitude, double longitude, ReferenceFrame referenceFrame)
         {
@@ -185,21 +226,78 @@ namespace KRPC.SpaceCenter.Services
         /// The position of the surface at the given latitude and longitude, in the given
         /// reference frame. When over water, this is the position at the bottom of the sea-bed.
         /// </summary>
-        /// <param name="latitude">Latitude in degrees</param>
-        /// <param name="longitude">Longitude in degrees</param>
-        /// <param name="referenceFrame">Reference frame for the returned position vector</param>
+        /// <returns>Position as a vector.</returns>
+        /// <param name="latitude">Latitude in degrees.</param>
+        /// <param name="longitude">Longitude in degrees.</param>
+        /// <param name="referenceFrame">Reference frame for the returned position vector.</param>
         [KRPCMethod]
         public Tuple3 BedrockPosition (double latitude, double longitude, ReferenceFrame referenceFrame)
         {
             return PositionAt (latitude, longitude, BedrockHeight (latitude, longitude), referenceFrame);
         }
 
+        /// <summary>
+        /// The position at the given latitude, longitude and altitude, in the given reference frame.
+        /// </summary>
+        /// <returns>Position as a vector.</returns>
+        /// <param name="latitude">Latitude in degrees.</param>
+        /// <param name="longitude">Longitude in degrees.</param>
+        /// <param name="altitude">Altitude in meters above sea level.</param>
+        /// <param name="referenceFrame">Reference frame for the returned position vector.</param>
+        [KRPCMethod]
+        public Tuple3 PositionAtAltitude (double latitude, double longitude, double altitude, ReferenceFrame referenceFrame)
+        {
+            return PositionAt (latitude, longitude, altitude, referenceFrame);
+        }
+
         Tuple3 PositionAt (double latitude, double longitude, double altitude, ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             var position = InternalBody.GetWorldSurfacePosition (latitude, longitude, altitude);
             return referenceFrame.PositionFromWorldSpace (position).ToTuple ();
+        }
+
+        /// <summary>
+        /// The latitude of the given position, in the given reference frame.
+        /// </summary>
+        /// <param name="position">Position as a vector.</param>
+        /// <param name="referenceFrame">Reference frame for the position vector.</param>
+        [KRPCMethod]
+        [SuppressMessage ("Gendarme.Rules.Smells", "AvoidCodeDuplicatedInSameClassRule")]
+        public double LatitudeAtPosition (Tuple3 position, ReferenceFrame referenceFrame)
+        {
+            if (ReferenceEquals(referenceFrame, null))
+                throw new ArgumentNullException(nameof(referenceFrame));
+            return InternalBody.GetLatitude(referenceFrame.PositionToWorldSpace(position.ToVector()));
+        }
+
+        /// <summary>
+        /// The longitude of the given position, in the given reference frame.
+        /// </summary>
+        /// <param name="position">Position as a vector.</param>
+        /// <param name="referenceFrame">Reference frame for the position vector.</param>
+        [KRPCMethod]
+        [SuppressMessage ("Gendarme.Rules.Smells", "AvoidCodeDuplicatedInSameClassRule")]
+        public double LongitudeAtPosition (Tuple3 position, ReferenceFrame referenceFrame)
+        {
+            if (ReferenceEquals(referenceFrame, null))
+                throw new ArgumentNullException(nameof(referenceFrame));
+            return InternalBody.GetLongitude(referenceFrame.PositionToWorldSpace(position.ToVector()));
+        }
+
+        /// <summary>
+        /// The altitude, in meters, of the given position in the given reference frame.
+        /// </summary>
+        /// <param name="position">Position as a vector.</param>
+        /// <param name="referenceFrame">Reference frame for the position vector.</param>
+        [KRPCMethod]
+        [SuppressMessage ("Gendarme.Rules.Smells", "AvoidCodeDuplicatedInSameClassRule")]
+        public double AltitudeAtPosition (Tuple3 position, ReferenceFrame referenceFrame)
+        {
+            if (ReferenceEquals(referenceFrame, null))
+                throw new ArgumentNullException(nameof(referenceFrame));
+            return InternalBody.GetAltitude(referenceFrame.PositionToWorldSpace(position.ToVector()));
         }
 
         /// <summary>
@@ -213,7 +311,7 @@ namespace KRPC.SpaceCenter.Services
         /// <summary>
         /// The orbit of the body.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty(Nullable = true)]
         public Orbit Orbit {
             get { return orbit; }
         }
@@ -235,26 +333,100 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
+        /// The atmospheric density at the given position, in <math>kg/m^3</math>,
+        /// in the given reference frame.
+        /// </summary>
+        /// <param name="position">The position vector at which to measure the density.</param>
+        /// <param name="referenceFrame">Reference frame that the position vector is in.</param>
+        [KRPCMethod]
+        [SuppressMessage ("Gendarme.Rules.Smells", "AvoidCodeDuplicatedInSameClassRule")]
+        public double AtmosphericDensityAtPosition(Tuple3 position, ReferenceFrame referenceFrame)
+        {
+            if (ReferenceEquals(referenceFrame, null))
+                throw new ArgumentNullException(nameof(referenceFrame));
+            var worldPosition = referenceFrame.PositionToWorldSpace(position.ToVector());
+            var body = InternalBody;
+            var altitude = (float) body.GetAltitude(worldPosition);
+            var latitude = (float) body.GetLatitude(worldPosition);
+            var pressure = FlightGlobals.getStaticPressure(worldPosition);
+            var temperature =
+                FlightGlobals.getExternalTemperature(altitude, body)
+                + body.atmosphereTemperatureSunMultCurve.Evaluate(altitude)
+                * (body.latitudeTemperatureBiasCurve.Evaluate(latitude)
+                   + body.latitudeTemperatureSunMultCurve.Evaluate(latitude) // fix that 0 into latitude
+                   + body.axialTemperatureSunMultCurve.Evaluate(1));
+            return FlightGlobals.getAtmDensity(pressure, temperature);
+        }
+
+        /// <summary>
         /// <c>true</c> if there is oxygen in the atmosphere, required for air-breathing engines.
         /// </summary>
         [KRPCProperty]
-        public bool HasAtmosphericOxygen {
+        public bool HasAtmosphericOxygen
+        {
             get { return InternalBody.atmosphereContainsOxygen; }
+        }
+
+        /// <summary>
+        /// The temperature on the body at the given position, in the given reference frame.
+        /// </summary>
+        /// <param name="position">Position as a vector.</param>
+        /// <param name="referenceFrame">The reference frame that the position is in.</param>
+        /// <remarks>
+        /// This calculation is performed using the bodies current position, which means that
+        /// the value could be wrong if you want to know the temperature in the far future.
+        /// </remarks>
+        [KRPCMethod]
+        public double TemperatureAt (Tuple3 position, ReferenceFrame referenceFrame)
+        {
+            if (ReferenceEquals (referenceFrame, null))
+                throw new ArgumentNullException (nameof (referenceFrame));
+            return StockAerodynamics.GetTemperature(referenceFrame.PositionToWorldSpace(position.ToVector()), InternalBody);
+        }
+
+        /// <summary>
+        /// Gets the air density, in <math>kg/m^3</math>, for the specified
+        /// altitude above sea level, in meters.
+        /// </summary>
+        /// <remarks>
+        /// This is an approximation, because actual calculations, taking sun exposure into account
+        /// to compute air temperature, require us to know the exact point on the body where the
+        /// density is to be computed (knowing the altitude is not enough).
+        /// However, the difference is small for high altitudes, so it makes very little difference
+        /// for trajectory prediction.
+        /// </remarks>
+        [KRPCMethod]
+        public double DensityAt (double altitude)
+        {
+            return StockAerodynamics.GetDensity (altitude, InternalBody);
+        }
+
+        /// <summary>
+        /// Gets the air pressure, in Pascals, for the specified
+        /// altitude above sea level, in meters.
+        /// </summary>
+        [KRPCMethod]
+        public double PressureAt (double altitude)
+        {
+            return StockAerodynamics.GetPressure (altitude, InternalBody);
         }
 
         /// <summary>
         /// The biomes present on this body.
         /// </summary>
         [KRPCProperty]
-        public IList<string> Biomes {
+        [SuppressMessage ("Gendarme.Rules.Smells", "AvoidCodeDuplicatedInSameClassRule")]
+        public HashSet<string> Biomes {
             get {
-                CheckHasBiomes ();
-                return InternalBody.BiomeMap.Attributes.Select (x => x.name).ToList ();
+                var body = InternalBody;
+                if (body.BiomeMap == null)
+                    return new HashSet<string>();
+                return new HashSet<string> (body.BiomeMap.Attributes.Select (x => x.name));
             }
         }
 
         /// <summary>
-        /// The biomes at the given latitude and longitude, in degrees.
+        /// The biome at the given latitude and longitude, in degrees.
         /// </summary>
         [KRPCMethod]
         public string BiomeAt (double latitude, double longitude)
@@ -271,7 +443,8 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// The altitude, in meters, above which a vessel is considered to be flying "high" when doing science.
+        /// The altitude, in meters, above which a vessel is considered to be
+        /// flying "high" when doing science.
         /// </summary>
         [KRPCProperty]
         public float FlyingHighAltitudeThreshold {
@@ -279,7 +452,8 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// The altitude, in meters, above which a vessel is considered to be in "high" space when doing science.
+        /// The altitude, in meters, above which a vessel is considered to be
+        /// in "high" space when doing science.
         /// </summary>
         [KRPCProperty]
         public float SpaceHighAltitudeThreshold {
@@ -326,7 +500,7 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Gets the reference frame that is fixed relative to this celestial body, but
+        /// The reference frame that is fixed relative to this celestial body, but
         /// orientated with the body's orbital prograde/normal/radial directions.
         /// <list type="bullet">
         /// <item><description>The origin is at the center of the body.
@@ -347,38 +521,45 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Returns the position vector of the center of the body in the specified reference frame.
+        /// The position of the center of the body, in the specified reference frame.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The position as a vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// position vector is in.</param>
         [KRPCMethod]
         public Tuple3 Position (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.PositionFromWorldSpace (InternalBody.position).ToTuple ();
         }
 
         /// <summary>
-        /// Returns the velocity vector of the body in the specified reference frame.
+        /// The linear velocity of the body, in the specified reference frame.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The velocity as a vector. The vector points in the direction of travel,
+        /// and its magnitude is the speed of the body in meters per second.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// velocity vector is in.</param>
         [KRPCMethod]
         public Tuple3 Velocity (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.VelocityFromWorldSpace (InternalBody.position, InternalBody.GetWorldVelocity ()).ToTuple ();
         }
 
         /// <summary>
-        /// Returns the rotation of the body in the specified reference frame.
+        /// The rotation of the body, in the specified reference frame.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The rotation as a quaternion of the form <math>(x, y, z, w)</math>.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// rotation is in.</param>
         [KRPCMethod]
         public Tuple4 Rotation (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             var up = Vector3.up;
             var right = InternalBody.GetRelSurfacePosition (0, 0, 1).normalized;
             var forward = Vector3.Cross (right, up);
@@ -388,31 +569,34 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Returns the direction in which the north pole of the celestial body is
-        /// pointing, as a unit vector, in the specified reference frame.
+        /// The direction in which the north pole of the celestial body is pointing,
+        /// in the specified reference frame.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The direction as a unit vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// direction is in.</param>
         [KRPCMethod]
         public Tuple3 Direction (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.DirectionFromWorldSpace (InternalBody.transform.up).ToTuple ();
         }
 
 
         /// <summary>
-        /// Returns the angular velocity of the body in the specified reference
-        /// frame. The magnitude of the vector is the rotational speed of the body, in
-        /// radians per second, and the direction of the vector indicates the axis of
-        /// rotation, using the right-hand rule.
+        /// The angular velocity of the body in the specified reference frame.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The angular velocity as a vector. The magnitude of the vector is the rotational
+        /// speed of the body, in radians per second. The direction of the vector indicates the axis
+        /// of rotation, using the right-hand rule.</returns>
+        /// <param name="referenceFrame">The reference frame the returned
+        /// angular velocity is in.</param>
         [KRPCMethod]
         public Tuple3 AngularVelocity (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.AngularVelocityFromWorldSpace (InternalBody.angularVelocity).ToTuple ();
         }
     }

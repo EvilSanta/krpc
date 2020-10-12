@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using KRPC.Continuations;
 using KRPC.Service.Attributes;
@@ -15,8 +14,7 @@ namespace KRPC.SpaceCenter.Services.Parts
     [KRPCClass (Service = "SpaceCenter")]
     public class Decoupler : Equatable<Decoupler>
     {
-        readonly ModuleDecouple decoupler;
-        readonly ModuleAnchoredDecoupler anchoredDecoupler;
+        readonly Compatibility.ModuleDecoupler decoupler;
 
         internal static bool Is (Part part)
         {
@@ -29,11 +27,9 @@ namespace KRPC.SpaceCenter.Services.Parts
         internal Decoupler (Part part)
         {
             Part = part;
-            var internalPart = part.InternalPart;
-            decoupler = internalPart.Module<ModuleDecouple> ();
-            anchoredDecoupler = internalPart.Module<ModuleAnchoredDecoupler> ();
-            if (decoupler == null && anchoredDecoupler == null)
-                throw new ArgumentException ("Part is not a decoupler");
+            decoupler = new Compatibility.ModuleDecoupler(part.InternalPart);
+            if (decoupler.Instance == null)
+                throw new ArgumentException("Part is not a decoupler");
         }
 
         /// <summary>
@@ -42,10 +38,9 @@ namespace KRPC.SpaceCenter.Services.Parts
         public override bool Equals (Decoupler other)
         {
             return
-            !ReferenceEquals (other, null) &&
+            !ReferenceEquals(other, null) &&
             Part != other.Part &&
-            (decoupler == other.decoupler || decoupler.Equals (other.decoupler)) &&
-            (anchoredDecoupler == other.anchoredDecoupler || anchoredDecoupler.Equals (other.anchoredDecoupler));
+            (decoupler.Instance == other.decoupler.Instance || decoupler.Instance.Equals(other.decoupler.Instance));
         }
 
         /// <summary>
@@ -53,12 +48,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         public override int GetHashCode ()
         {
-            int hash = Part.GetHashCode ();
-            if (decoupler != null)
-                hash ^= decoupler.GetHashCode ();
-            if (anchoredDecoupler != null)
-                hash ^= anchoredDecoupler.GetHashCode ();
-            return hash;
+            return Part.GetHashCode () ^ decoupler.Instance.GetHashCode();
         }
 
         /// <summary>
@@ -71,6 +61,11 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// Fires the decoupler. Returns the new vessel created when the decoupler fires.
         /// Throws an exception if the decoupler has already fired.
         /// </summary>
+        /// <remarks>
+        /// When called, the active vessel may change. It is therefore possible that,
+        /// after calling this function, the object(s) returned by previous call(s) to
+        /// <see cref="SpaceCenter.ActiveVessel"/> no longer refer to the active vessel.
+        /// </remarks>
         [KRPCMethod]
         public Vessel Decouple ()
         {
@@ -80,17 +75,14 @@ namespace KRPC.SpaceCenter.Services.Parts
             var preVesselIds = FlightGlobals.Vessels.Select (v => v.id).ToList ();
 
             // Fire the decoupler
-            if (decoupler != null)
-                decoupler.Decouple ();
-            else
-                anchoredDecoupler.Decouple ();
+            decoupler.Decouple();
 
             return PostDecouple (preVesselIds);
         }
 
         Vessel PostDecouple (IList<Guid> preVesselIds, int wait = 0)
         {
-            //FIXME: sometimes after decoupling, KSP changes it's mind as to what the active vessel is, so we wait for 10 frames before getting the active vessel
+            // FIXME: sometimes after decoupling, KSP changes it's mind as to what the active vessel is, so we wait for 10 frames before getting the active vessel
             // Wait while the decoupler hasn't fired
             if (wait < 10 || !Decoupled)
                 throw new YieldException (new ParameterizedContinuation<Vessel, IList<Guid>, int> (PostDecouple, preVesselIds, wait + 1));
@@ -102,9 +94,10 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// Whether the decoupler has fired.
         /// </summary>
         [KRPCProperty]
-        [SuppressMessage ("Gendarme.Rules.Smells", "AvoidCodeDuplicatedInSameClassRule")]
         public bool Decoupled {
-            get { return decoupler != null ? decoupler.isDecoupled : anchoredDecoupler.isDecoupled; }
+            get {
+                return decoupler.IsDecoupled;
+            }
         }
 
         /// <summary>
@@ -112,7 +105,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         [KRPCProperty]
         public bool Staged {
-            get { return decoupler != null ? decoupler.StagingEnabled () : anchoredDecoupler.StagingEnabled (); }
+            get { return decoupler.StagingEnabled; }
         }
 
         /// <summary>
@@ -120,7 +113,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// </summary>
         [KRPCProperty]
         public float Impulse {
-            get { return (decoupler != null ? decoupler.ejectionForce : anchoredDecoupler.ejectionForce) * 10f; }
+            get { return decoupler.EjectionForce * 10f; }
         }
     }
 }

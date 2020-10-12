@@ -41,6 +41,9 @@
 {{ parameters_description(x.parameters) }}
 {% if hasdoc(x.documentation, './returns') %}{{ returns(x.documentation) | indent }}
 {% endif %}
+{% if x.game_scenes != None %}
+   {{ game_scenes(x.game_scenes) }}
+{% endif %}
 
 {% if hasdoc(x.documentation, './remarks') %}{{ remarks(x.documentation) | indent }}
 
@@ -55,6 +58,9 @@
 {{ gendoc(x.documentation) | indent }}
 
 {% if hasdoc(x.documentation, './returns') %}{{ returns(x.documentation) | indent }}
+{% endif %}
+{% if x.game_scenes != None %}
+   {{ game_scenes(x.game_scenes) }}
 {% endif %}
 
 {% if hasdoc(x.documentation, './remarks') %}{{ remarks(x.documentation) | indent }}
@@ -72,6 +78,9 @@
 {{ parameters_description(x.parameters[1:]) }}
 {% if hasdoc(x.documentation, './returns') %}{{ returns(x.documentation) | indent }}
 {% endif %}
+{% if x.game_scenes != None %}
+   {{ game_scenes(x.game_scenes) }}
+{% endif %}
 
 {% if hasdoc(x.documentation, './remarks') %}{{ remarks(x.documentation) | indent }}
 
@@ -81,12 +90,15 @@
 {% endmacro %}
 
 {% macro class_static_method(x) %}{{ mark_documented(x) }}
-.. method:: static {{ domain.return_type(x.return_type) }} {{ x.name }}({{ parameters(x.parameters) }})
+.. method:: static {{ domain.return_type(x.return_type) }} {{ x.name }}(IConnection connection, {{ parameters(x.parameters) }})
 
 {{ gendoc(x.documentation) | indent }}
 
 {{ parameters_description(x.parameters) }}
 {% if hasdoc(x.documentation, './returns') %}{{ returns(x.documentation) | indent }}
+{% endif %}
+{% if x.game_scenes != None %}
+   {{ game_scenes(x.game_scenes) }}
 {% endif %}
 
 {% if hasdoc(x.documentation, './remarks') %}{{ remarks(x.documentation) | indent }}
@@ -111,8 +123,16 @@
 
 {{ gendoc(value.documentation) | indent(width=6) }}
 
-{% if hasdoc(x.documentation, './remarks') %}{{ remarks(x.documentation) | indent(width=6) }}{% endif %}
+{% if hasdoc(value.documentation, './remarks') %}{{ remarks(value.documentation) | indent(width=6) }}{% endif %}
 {% endfor %}
+{% endmacro %}
+
+{% macro exception(x) %}{{ mark_documented(x) }}
+.. class:: {{ x.name }}
+
+{{ gendoc(x.documentation) | indent }}
+
+{% if hasdoc(x.documentation, './remarks') %}{{ remarks(x.documentation) | indent }}{% endif %}
 {% endmacro %}
 
 {% macro parameters(x) %}
@@ -123,7 +143,7 @@
 {% if not x.has_default_value -%}
 {{ domain.parameter_type(x.type) }} {{ x.name }}
 {%- else -%}
-{{ domain.parameter_type(x.type) }} {{ x.name }} = {{ x.default_value }}
+{{ domain.parameter_type(x.type) }} {{ x.name }} = {{ domain.default_value(x.default_value, x.type) }}
 {%- endif %}
 {% endmacro %}
 
@@ -146,4 +166,8 @@
 .. note::
 
 {{ gendoc(x, './remarks') | indent }}
+{% endmacro %}
+
+{% macro game_scenes(x) %}
+:Game Scenes: {{ x }}
 {% endmacro %}

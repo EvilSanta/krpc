@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using KRPC.Service;
 using KRPC.Service.Attributes;
 using KRPC.SpaceCenter.ExtensionMethods;
 using KRPC.Utils;
@@ -14,7 +15,7 @@ namespace KRPC.SpaceCenter.Services
     /// <see cref="Vessel.ResourcesInDecoupleStage"/> or
     /// <see cref="Parts.Part.Resources"/>.
     /// </summary>
-    [KRPCClass (Service = "SpaceCenter")]
+    [KRPCClass (Service = "SpaceCenter", GameScene = GameScene.Flight)]
     public class Resources : Equatable<Resources>
     {
         readonly Guid vesselId;
@@ -87,7 +88,7 @@ namespace KRPC.SpaceCenter.Services
                 var resources = new List<PartResource> ();
                 if (vesselId != Guid.Empty) {
                     foreach (var vesselPart in InternalVessel.Parts) {
-                        if (stage < 0 || vesselPart.DecoupledAt () + 1 == stage || (cumulative && vesselPart.DecoupledAt () < stage)) {
+                        if (vesselPart.DecoupledAt () == stage || (cumulative && vesselPart.DecoupledAt () >= stage)) {
                             foreach (PartResource resource in vesselPart.Resources)
                                 resources.Add (resource);
                         }
@@ -167,7 +168,7 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Returns the density of a resource, in kg/l.
+        /// Returns the density of a resource, in <math>kg/l</math>.
         /// </summary>
         /// <param name="name">The name of the resource.</param>
         [KRPCMethod]
@@ -190,7 +191,8 @@ namespace KRPC.SpaceCenter.Services
         /// Whether use of all the resources are enabled.
         /// </summary>
         /// <remarks>
-        /// This is true if all of the resources are enabled. If any of the resources are not enabled, this is false.
+        /// This is <c>true</c> if all of the resources are enabled.
+        /// If any of the resources are not enabled, this is <c>false</c>.
         /// </remarks>
         [KRPCProperty]
         public bool Enabled {

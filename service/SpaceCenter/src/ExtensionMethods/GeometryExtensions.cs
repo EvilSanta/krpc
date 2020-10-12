@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using KRPC.Utils;
 using UnityEngine;
 using Tuple2 = KRPC.Utils.Tuple<double, double>;
 using Tuple3 = KRPC.Utils.Tuple<double, double, double>;
 using Tuple4 = KRPC.Utils.Tuple<double, double, double, double>;
+using TupleV3 = KRPC.Utils.Tuple<Vector3d, Vector3d>;
+using TupleT3 = KRPC.Utils.Tuple<KRPC.Utils.Tuple<double, double, double>, KRPC.Utils.Tuple<double, double, double>>;
 
 namespace KRPC.SpaceCenter.ExtensionMethods
 {
@@ -90,6 +93,15 @@ namespace KRPC.SpaceCenter.ExtensionMethods
         }
 
         /// <summary>
+        /// Convert a pair of vectors to a pair of tuples
+        /// </summary>
+        [SuppressMessage ("Gendarme.Rules.Design.Generic", "DoNotExposeNestedGenericSignaturesRule")]
+        public static TupleT3 ToTuple (this TupleV3 v)
+        {
+            return new TupleT3 (v.Item1.ToTuple (), v.Item2.ToTuple ());
+        }
+
+        /// <summary>
         /// Swap the Y and Z components of a vector
         /// </summary>
         public static Vector3d SwapYZ (this Vector3d v)
@@ -131,10 +143,9 @@ namespace KRPC.SpaceCenter.ExtensionMethods
         {
             if (v.sqrMagnitude < min * min)
                 return v.normalized * min;
-            else if (v.sqrMagnitude > max * max)
+            if (v.sqrMagnitude > max * max)
                 return v.normalized * max;
-            else
-                return v;
+            return v;
         }
 
         /// <summary>
@@ -145,10 +156,9 @@ namespace KRPC.SpaceCenter.ExtensionMethods
         {
             if (value.CompareTo (min) < 0)
                 return min;
-            else if (value.CompareTo (max) > 0)
+            if (value.CompareTo (max) > 0)
                 return max;
-            else
-                return value;
+            return value;
         }
 
         /// <summary>
@@ -397,6 +407,32 @@ namespace KRPC.SpaceCenter.ExtensionMethods
                 for (int j = 0; j < 3; j++)
                     m [i, j] = left [i] * right [j];
             return m;
+        }
+
+        /// <summary>
+        /// Compute the vertices for an axis-aligned bounding box.
+        /// </summary>
+        public static Vector3[] ToVertices (this Bounds box)
+        {
+            return new [] {
+                box.max,
+                box.min,
+                box.center + new Vector3 (-box.extents.x, box.extents.y, box.extents.z),
+                box.center + new Vector3 (box.extents.x, -box.extents.y, box.extents.z),
+                box.center + new Vector3 (box.extents.x, box.extents.y, -box.extents.z),
+                box.center + new Vector3 (-box.extents.x, -box.extents.y, box.extents.z),
+                box.center + new Vector3 (-box.extents.x, box.extents.y, -box.extents.z),
+                box.center + new Vector3 (box.extents.x, -box.extents.y, -box.extents.z)
+            };
+        }
+
+        /// <summary>
+        /// Convert an axis-aligned bounding box to its min and max positions as tuples.
+        /// </summary>
+        [SuppressMessage ("Gendarme.Rules.Design.Generic", "DoNotExposeNestedGenericSignaturesRule")]
+        public static TupleT3 ToTuples (this Bounds bounds)
+        {
+            return new TupleT3 (bounds.min.ToTuple (), bounds.max.ToTuple ());
         }
     }
 }

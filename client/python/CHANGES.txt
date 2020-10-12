@@ -1,3 +1,50 @@
+v0.4.9
+ * Fix protobuf requirement to be >=3.6 (#506, #510)
+ * Update to protobuf v3.9.1
+
+v0.4.8
+ * Update to protobuf v3.6.1
+ * Add condition variable and callbacks that are called when a stream update message is processed (#473)
+
+v0.4.6
+ * Add methods to remove callbacks from streams and events (#451)
+
+v0.4.5
+ * Update to protobuf v3.5.1
+
+v0.4.3
+ * Add rate control for streams (#116, #141)
+
+v0.4.0
+ * Updated protocol in line with server changes
+ * Remove connection retries. Client will now fail fast if it fails to connect to the server
+ * Reorder parameters to krpc.connect() so that name is first - to be consistent with other client libraries
+ * Add support for RPCs and streams to throw exceptions
+ * Add stream waiting and update callbacks
+ * Add support for events
+ * Don't execute an initial RPC when a stream is created, wait for the first update instead
+
+v0.3.10
+ * Update to protobuf v3.4.0
+
+v0.3.9.post1
+ * Fix compatibility with protobuf v3.4.0
+
+v0.3.9
+ * Update to protobuf v3.3.0
+
+v0.3.8.post1
+ * Rename protobuf generated files to *_pb2.py to fix issue with protobuf 3.2.0 (#378, #376)
+ * Relax package requirements to protobuf >= 3
+
+v0.3.8
+ * Clean up code to meet PEP 8 guidelines
+ * Update to protobuf v3.2.0
+ * Change package requirements to protobuf >= 3.2
+
+v0.3.7
+ * Fix bug parsing nested collection types
+
 v0.3.6
  * Fix values not being documented in generated enumeration classes
 

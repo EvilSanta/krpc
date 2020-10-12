@@ -1,11 +1,11 @@
-load('/tools/build/sphinx', 'sphinx_build', 'sphinx_spelling_test', 'sphinx_linkcheck_test')
-load('/tools/build/pkg', 'stage_files')
-load('/tools/build/python', 'py_script')
-load('/tools/build/image', 'png_images')
-load('/tools/krpctools/docgen', 'docgen_multiple')
-load('/doc/test', 'check_documented_test')
-load('/config', 'version')
-load('macros', 'csharp_binary_multiple', 'csharp_library_multiple', 'cc_binary_multiple', 'java_binary_multiple')
+load('//tools/build:sphinx.bzl', 'sphinx_build', 'sphinx_spelling_test', 'sphinx_linkcheck_test')
+load('//tools/build:pkg.bzl', 'stage_files')
+load('//tools/build:python.bzl', 'py_script', 'py_lint_test')
+load('//tools/build:image.bzl', 'png_images')
+load('//tools/krpctools:docgen.bzl', 'docgen_multiple')
+load('//doc:test.bzl', 'check_documented_test')
+load('//:config.bzl', 'version')
+load('//doc:macros.bzl', 'csharp_binary_multiple', 'csharp_library_multiple', 'cc_binary_multiple', 'java_binary_multiple')
 
 filegroup(
     name = 'doc',
@@ -21,17 +21,21 @@ stage_files(
         'src/**/*.rst',
         'src/images/**/*.png',
         'src/crafts/*.craft',
-        'src/scripts/*.cs',
-        'src/scripts/*.cpp',
-        'src/scripts/*.java',
-        'src/scripts/*.lua',
-        'src/scripts/*.py'
+        'src/scripts/**/*.c',
+        'src/scripts/**/*.ino',
+        'src/scripts/**/*.cs',
+        'src/scripts/**/*.cpp',
+        'src/scripts/**/*.java',
+        'src/scripts/**/*.lua',
+        'src/scripts/**/*.py',
+        'src/scripts/**/*.js'
     ]) + [
         ':conf',
         'src/_static/custom.css',
         'src/_templates/layout.html',
         'src/dictionary.txt',
         ':images',
+        ':cnano-api',
         ':csharp-api',
         ':cpp-api',
         ':java-api',
@@ -48,25 +52,39 @@ py_script(
     script = 'sphinx-build',
     pkg = '@python_sphinx//file',
     deps = [
-        '@python_pbr//file',
         '@python_alabaster//file',
         '@python_babel//file',
+        '@python_certifi//file',
+        '@python_chardet//file',
         '@python_beautifulsoup4//file',
         '@python_docutils//file',
+        '@python_future//file',
+        '@python_idna//file',
+        '@python_imagesize//file',
         '@python_javalang//file',
         '@python_jinja2//file',
         '@python_lxml//file',
         '@python_markupsafe//file',
+        '@python_packaging//file',
         '@python_pyenchant//file',
         '@python_pygments//file',
+        '@python_pyparsing//file',
         '@python_pytz//file',
+        '@python_pbr//file',
+        '@python_requests//file',
+        '@python_setuptools//file',
+        '@python_setuptools_git//file',
         '@python_six//file',
         '@python_snowballstemmer//file',
+        '@python_typing//file',
+        '@python_urllib3//file',
         '@python_sphinxcontrib_spelling//file',
+        '@python_sphinxcontrib_websupport//file',
         '@python_sphinx_csharp//file',
-        '@python_sphinx_java//file',
+        '@python_javasphinx//file',
         '@python_sphinx_lua//file',
-        '@python_sphinx_rtd_theme//file'
+        '@python_sphinx_rtd_theme//file',
+        '@python_sphinx_tabs//file'
     ],
     visibility = ['//visibility:public']
 )
@@ -113,6 +131,14 @@ defs = [
 ]
 
 docgen_multiple(
+    name = 'cnano-api',
+    outdir = 'src/cnano',
+    language = 'cnano',
+    srcs = glob(['api/**/*.tmpl']),
+    defs = defs
+)
+
+docgen_multiple(
     name = 'csharp-api',
     outdir = 'src/csharp',
     language = 'csharp',
@@ -154,7 +180,7 @@ docgen_multiple(
 
 test_suite(
     name = 'test',
-    tests = [':spelling', ':check-documented'] # ':linkcheck'
+    tests = [':spelling', ':check-documented', ':lint'] # ':linkcheck'
 )
 
 test_suite(
@@ -167,7 +193,7 @@ sphinx_spelling_test(
     srcs = [':srcs'],
     sphinx_build = ':sphinx-build',
     opts = {'version': version},
-    size = 'small'
+    size = 'medium'
 )
 
 sphinx_linkcheck_test(
@@ -181,12 +207,20 @@ sphinx_linkcheck_test(
 test_suite(
     name = 'check-documented',
     tests = [
+        ':check-documented-cnano',
         ':check-documented-csharp',
         ':check-documented-cpp',
         ':check-documented-java',
         ':check-documented-lua',
         ':check-documented-python'
     ]
+)
+
+check_documented_test(
+    name = 'check-documented-cnano',
+    srcs = [':cnano-api'],
+    members = 'order.txt',
+    size = 'small'
 )
 
 check_documented_test(
@@ -227,6 +261,7 @@ check_documented_test(
 filegroup(
     name = 'compile-scripts',
     srcs = [
+        ':compile-scripts-cnano',
         ':compile-scripts-csharp',
         ':compile-scripts-cpp',
         ':compile-scripts-java'
@@ -241,9 +276,15 @@ filegroup(
     ]
 )
 
+cc_binary_multiple(
+    name = 'compile-scripts-cnano',
+    srcs = glob(['src/scripts/**/*.c']),
+    deps = ['//client/cnano:krpc_cnano']
+)
+
 csharp_binary_multiple(
     name = 'compile-scripts-csharp-exes',
-    srcs = glob(['src/scripts/*.cs'], exclude=['src/scripts/*.lib.cs']),
+    srcs = glob(['src/scripts/**/*.cs'], exclude=['src/scripts/**/*.lib.cs']),
     deps = [
         '//client/csharp:KRPC.Client',
         '//tools/build/mono-4.5:Google.Protobuf',
@@ -252,52 +293,58 @@ csharp_binary_multiple(
         '//tools/build/mono-4.5:System.Core',
         '//tools/build/mono-4.5:System.Runtime',
         '//tools/build/mono-4.5:System.IO',
-        '//tools/build/mono-4.5:System.Xml',
-        '//tools/build/mono-4.5:System.Xml.Linq'
+        '//tools/build/mono-4.5:System.Xml'
     ]
 )
 
 csharp_library_multiple(
     name = 'compile-scripts-csharp-libs',
-    srcs = glob(['src/scripts/*.lib.cs']),
+    srcs = glob(['src/scripts/**/*.lib.cs']),
     deps = [
         '//server:KRPC',
         '//tools/build/ksp:Google.Protobuf',
         '//tools/build/ksp:Assembly-CSharp',
         '//tools/build/ksp:Assembly-CSharp-firstpass',
         '//tools/build/ksp:UnityEngine',
+        '//tools/build/ksp:UnityEngine.AnimationModule',
+        '//tools/build/ksp:UnityEngine.CoreModule',
+        '//tools/build/ksp:UnityEngine.IMGUIModule',
+        '//tools/build/ksp:UnityEngine.InputLegacyModule',
         '//tools/build/ksp:UnityEngine.UI',
-        '//tools/build/ksp:KSPUtil',
         '//tools/build/ksp:mscorlib',
         '//tools/build/ksp:System',
         '//tools/build/ksp:System.Core',
-        '//tools/build/ksp:System.Xml',
-        '//tools/build/ksp:System.Xml.Linq'
+        '//tools/build/ksp:System.Xml'
     ]
 )
 
 cc_binary_multiple(
     name = 'compile-scripts-cpp',
-    srcs = glob(['src/scripts/*.cpp']),
+    srcs = glob(['src/scripts/**/*.cpp']),
     deps = ['//client/cpp:krpc']
-)
-
-java_import(
-    name = 'javatuples',
-    jars = ['@java_javatuples//file']
-)
-
-java_import(
-    name = 'javaprotobuf',
-    jars = ['@java_protobuf//file']
 )
 
 java_binary_multiple(
     name = 'compile-scripts-java',
-    srcs = glob(['src/scripts/*.java']),
+    srcs = glob(['src/scripts/**/*.java']),
     deps = [
         '//client/java:krpc-jar',
-        ':javaprotobuf',
-        ':javatuples'
+        '@java_protobuf//jar',
+        '@java_javatuples//jar'
     ]
+)
+
+test_suite(
+    name = 'lint',
+    tests = [
+        ':lint-python'
+    ]
+)
+
+py_lint_test(
+    name = 'lint-python',
+    srcs = glob(['src/scripts/*.py'], exclude=['src/scripts/communication-protocol.py']),
+    pycodestyle_config = 'src/scripts/pycodestyle.ini',
+    pylint_config = 'src/scripts/pylint.rc',
+    size = 'small'
 )

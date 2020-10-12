@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using KRPC.Service;
 using KRPC.Service.Attributes;
 using KRPC.SpaceCenter.ExtensionMethods;
 using KRPC.Utils;
@@ -11,7 +12,7 @@ namespace KRPC.SpaceCenter.Services
     /// Controls the game's camera.
     /// Obtained by calling <see cref="SpaceCenter.Camera"/>.
     /// </summary>
-    [KRPCClass (Service = "SpaceCenter")]
+    [KRPCClass (Service = "SpaceCenter", GameScene = GameScene.Flight)]
     public class Camera : Equatable<Camera>
     {
         /// <summary>
@@ -48,9 +49,9 @@ namespace KRPC.SpaceCenter.Services
                 if (MapView.MapIsEnabled)
                     return CameraMode.Map;
                 var mode = CameraManager.Instance.currentCameraMode;
-                if (mode == CameraManager.CameraMode.Flight) {
+                if (mode == CameraManager.CameraMode.Flight)
                     return FlightCamera.fetch.mode.ToCameraMode ();
-                } else if (mode == CameraManager.CameraMode.IVA)
+                if (mode == CameraManager.CameraMode.IVA)
                     return CameraMode.IVA;
                 throw new InvalidOperationException ("Unknown camera mode " + CameraManager.Instance.currentCameraMode);
             }
@@ -159,7 +160,7 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// The distance from the camera to the subject.
+        /// The distance from the camera to the subject, in meters.
         /// A value between <see cref="MinDistance"/> and <see cref="MaxDistance"/>.
         /// </summary>
         [KRPCProperty]
@@ -169,7 +170,7 @@ namespace KRPC.SpaceCenter.Services
             get {
                 switch (Mode) {
                 case CameraMode.Map:
-                    return PlanetariumCamera.fetch.Distance;
+                    return PlanetariumCamera.fetch.Distance * ScaledSpace.ScaleFactor;
                 case CameraMode.IVA:
                     throw new NotImplementedException ();
                 default:
@@ -181,7 +182,7 @@ namespace KRPC.SpaceCenter.Services
                 case CameraMode.Map:
                     {
                         var camera = PlanetariumCamera.fetch;
-                        camera.SetDistance (value.Clamp (camera.minDistance, camera.maxDistance));
+                        camera.SetDistance (value.Clamp (camera.minDistance, camera.maxDistance) / ScaledSpace.ScaleFactor);
                         break;
                     }
                 case CameraMode.IVA:
@@ -233,7 +234,7 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Minimum distance from the camera to the subject.
+        /// Minimum distance from the camera to the subject, in meters.
         /// </summary>
         [KRPCProperty]
         [SuppressMessage ("Gendarme.Rules.Smells", "AvoidCodeDuplicatedInSameClassRule")]
@@ -241,7 +242,7 @@ namespace KRPC.SpaceCenter.Services
             get {
                 switch (Mode) {
                 case CameraMode.Map:
-                    return PlanetariumCamera.fetch.minDistance;
+                    return PlanetariumCamera.fetch.minDistance * ScaledSpace.ScaleFactor;
                 case CameraMode.IVA:
                     return InternalCamera.Instance.maxZoom;
                 default:
@@ -251,7 +252,7 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Maximum distance from the camera to the subject.
+        /// Maximum distance from the camera to the subject, in meters.
         /// </summary>
         [KRPCProperty]
         [SuppressMessage ("Gendarme.Rules.Smells", "AvoidCodeDuplicatedInSameClassRule")]
@@ -259,7 +260,7 @@ namespace KRPC.SpaceCenter.Services
             get {
                 switch (Mode) {
                 case CameraMode.Map:
-                    return PlanetariumCamera.fetch.maxDistance;
+                    return PlanetariumCamera.fetch.maxDistance * ScaledSpace.ScaleFactor;
                 case CameraMode.IVA:
                     return InternalCamera.Instance.minZoom;
                 default:
@@ -269,7 +270,7 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Default distance from the camera to the subject.
+        /// Default distance from the camera to the subject, in meters.
         /// </summary>
         [KRPCProperty]
         [SuppressMessage ("Gendarme.Rules.BadPractice", "DoNotForgetNotImplementedMethodsRule")]
@@ -277,7 +278,7 @@ namespace KRPC.SpaceCenter.Services
             get {
                 switch (Mode) {
                 case CameraMode.Map:
-                    return PlanetariumCamera.fetch.startDistance;
+                    return PlanetariumCamera.fetch.startDistance * ScaledSpace.ScaleFactor;
                 case CameraMode.IVA:
                     throw new NotImplementedException ();
                 default:
@@ -291,7 +292,7 @@ namespace KRPC.SpaceCenter.Services
         /// Returns <c>null</c> if the camera is not focussed on a celestial body.
         /// Returns an error is the camera is not in map mode.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         [SuppressMessage ("Gendarme.Rules.Correctness", "MethodCanBeMadeStaticRule")]
         [SuppressMessage ("Gendarme.Rules.Smells", "AvoidCodeDuplicatedInSameClassRule")]
         public CelestialBody FocussedBody {
@@ -313,7 +314,7 @@ namespace KRPC.SpaceCenter.Services
         /// Returns <c>null</c> if the camera is not focussed on a vessel.
         /// Returns an error is the camera is not in map mode.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         [SuppressMessage ("Gendarme.Rules.Correctness", "MethodCanBeMadeStaticRule")]
         public Vessel FocussedVessel {
             get {
@@ -322,9 +323,10 @@ namespace KRPC.SpaceCenter.Services
                 return vessel == null ? null : new Vessel (vessel);
             }
             set {
+                if (ReferenceEquals (value, null))
+                    throw new ArgumentNullException ("FocussedVessel");
                 CheckCameraFocus ();
-                var mapObject = PlanetariumCamera.fetch.targets.Single (x => x.vessel == value.InternalVessel);
-                PlanetariumCamera.fetch.SetTarget (mapObject);
+                PlanetariumCamera.fetch.SetTarget (value.InternalVessel.mapObject);
             }
         }
 
@@ -333,7 +335,7 @@ namespace KRPC.SpaceCenter.Services
         /// Returns <c>null</c> if the camera is not focussed on a maneuver node.
         /// Returns an error is the camera is not in map mode.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         [SuppressMessage ("Gendarme.Rules.Correctness", "MethodCanBeMadeStaticRule")]
         public Node FocussedNode {
             get {

@@ -2,6 +2,9 @@ def _impl(ctx):
     output = ctx.outputs.out
     protoc_output = output.path + '.tmp-proto-py'
 
+    if (not output.path.endswith('_pb2.py')):
+      fail('protoc output path must end with _pb2.py')
+
     sub_commands = [
         'rm -rf %s' % protoc_output,
         'mkdir -p %s' % protoc_output,
@@ -9,7 +12,7 @@ def _impl(ctx):
         'cp %s/protobuf/*.py %s' % (protoc_output, output.path)
     ]
 
-    ctx.action(
+    ctx.actions.run_shell(
         inputs = [ctx.file.src, ctx.file._protoc],
         outputs = [output],
         command = ' && '.join(sub_commands),
@@ -20,8 +23,10 @@ def _impl(ctx):
 protobuf_py = rule(
     implementation = _impl,
     attrs = {
-        'src': attr.label(allow_files=FileType(['.proto']), single_file=True),
-        '_protoc': attr.label(default=Label('@protobuf//:protoc'), allow_files=True, single_file=True),
+        'src': attr.label(allow_single_file=['.proto']),
+        '_protoc': attr.label(
+            default=Label('//tools/build/protobuf:protoc'),
+            allow_single_file=True),
         'out': attr.output(mandatory=True)
     },
     output_to_genfiles = True

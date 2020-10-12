@@ -1,8 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using Google.Protobuf;
-using KRPC.Client;
 using Moq;
 using NUnit.Framework;
 
@@ -12,50 +9,12 @@ namespace KRPC.Client.Test
     public class EncoderTest
     {
         [Test]
-        public void RpcHelloMessage ()
-        {
-            Assert.AreEqual (12, Encoder.RPCHelloMessage.Length);
-            Assert.AreEqual ("48454c4c4f2d525043000000", Encoder.RPCHelloMessage.ToHexString ());
-        }
-
-        [Test]
-        public void StreamHelloMessage ()
-        {
-            Assert.AreEqual (12, Encoder.StreamHelloMessage.Length);
-            Assert.AreEqual ("48454c4c4f2d53545245414d", Encoder.StreamHelloMessage.ToHexString ());
-        }
-
-        [Test]
-        public void ClientName ()
-        {
-            var clientName = Encoder.EncodeClientName ("foo");
-            Assert.AreEqual (32, clientName.Length);
-            Assert.AreEqual ("666f6f" + new String ('0', 29 * 2), clientName.ToHexString ());
-        }
-
-        [Test]
-        public void EmptyClientName ()
-        {
-            var clientName = Encoder.EncodeClientName (String.Empty);
-            Assert.AreEqual (32, clientName.Length);
-            Assert.AreEqual (new String ('0', 32 * 2), clientName.ToHexString ());
-        }
-
-        [Test]
-        public void LongClientName ()
-        {
-            var clientName = Encoder.EncodeClientName (new String ('a', 33));
-            Assert.AreEqual (32, clientName.Length);
-            Assert.AreEqual (String.Concat (Enumerable.Repeat ("61", 32)), clientName.ToHexString ());
-        }
-
-        [Test]
         public void EncodeMessage ()
         {
-            var request = new KRPC.Schema.KRPC.Request ();
-            request.Service = "ServiceName";
-            request.Procedure = "ProcedureName";
-            var data = Encoder.Encode (request, typeof(KRPC.Schema.KRPC.Request));
+            var call = new Schema.KRPC.ProcedureCall ();
+            call.Service = "ServiceName";
+            call.Procedure = "ProcedureName";
+            var data = Encoder.Encode (call, typeof(Schema.KRPC.ProcedureCall));
             const string expected = "0a0b536572766963654e616d65120d50726f6365647572654e616d65";
             Assert.AreEqual (expected, data.ToHexString ());
         }
@@ -63,7 +22,7 @@ namespace KRPC.Client.Test
         [Test]
         public void EncodeValue ()
         {
-            var data = Encoder.Encode (300, typeof(int));
+            var data = Encoder.Encode (300u, typeof(uint));
             Assert.AreEqual ("ac02", data.ToHexString ());
         }
 
@@ -78,17 +37,17 @@ namespace KRPC.Client.Test
         public void EncodeRemoteObject ()
         {
             var mockClient = new Mock<IConnection> ();
-            var obj = new KRPC.Client.Services.SpaceCenter.Vessel (mockClient.Object, 300);
+            var obj = new Services.SpaceCenter.Vessel (mockClient.Object, 300);
             Assert.AreEqual (300, obj.id);
             Assert.AreSame (mockClient.Object, obj.connection);
-            var data = Encoder.Encode (obj, typeof(KRPC.Client.Services.SpaceCenter.Vessel));
+            var data = Encoder.Encode (obj, typeof(Services.SpaceCenter.Vessel));
             Assert.AreEqual ("ac02", data.ToHexString ());
         }
 
         [Test]
         public void EncodeNullRemoteObject ()
         {
-            var data = Encoder.Encode (null, typeof(KRPC.Client.Services.SpaceCenter.Vessel));
+            var data = Encoder.Encode (null, typeof(Services.SpaceCenter.Vessel));
             Assert.AreEqual ("00", data.ToHexString ());
         }
 
@@ -96,9 +55,9 @@ namespace KRPC.Client.Test
         public void DecodeMessage ()
         {
             var message = "0a0b536572766963654e616d65120d50726f6365647572654e616d65".ToByteString ();
-            var request = (KRPC.Schema.KRPC.Request)Encoder.Decode (message, typeof(KRPC.Schema.KRPC.Request), null);
-            Assert.AreEqual ("ServiceName", request.Service);
-            Assert.AreEqual ("ProcedureName", request.Procedure);
+            var call = (Schema.KRPC.ProcedureCall)Encoder.Decode (message, typeof(Schema.KRPC.ProcedureCall), null);
+            Assert.AreEqual ("ServiceName", call.Service);
+            Assert.AreEqual ("ProcedureName", call.Procedure);
         }
 
         [Test]
@@ -119,7 +78,7 @@ namespace KRPC.Client.Test
         public void DecodeRemoteObject ()
         {
             var mockClient = new Mock<IConnection> ();
-            var value = (KRPC.Client.Services.SpaceCenter.Vessel)Encoder.Decode ("ac02".ToByteString (), typeof(KRPC.Client.Services.SpaceCenter.Vessel), mockClient.Object);
+            var value = (Services.SpaceCenter.Vessel)Encoder.Decode ("ac02".ToByteString (), typeof(Services.SpaceCenter.Vessel), mockClient.Object);
             Assert.AreEqual (300, value.id);
             Assert.AreSame (mockClient.Object, value.connection);
         }
@@ -128,16 +87,16 @@ namespace KRPC.Client.Test
         public void DecodeNullRemoteObject ()
         {
             var mockClient = new Mock<IConnection> ();
-            var value = (string)Encoder.Decode ("00".ToByteString (), typeof(KRPC.Client.Services.SpaceCenter.Vessel), mockClient.Object);
+            var value = (string)Encoder.Decode ("00".ToByteString (), typeof(Services.SpaceCenter.Vessel), mockClient.Object);
             Assert.IsNull (value);
         }
 
         [TestCase (3.14159265359f, "db0f4940")]
         [TestCase (-1.0f, "000080bf")]
         [TestCase (0.0f, "00000000")]
-        [TestCase (Single.PositiveInfinity, "0000807f")]
-        [TestCase (Single.NegativeInfinity, "000080ff")]
-        [TestCase (Single.NaN, "0000c0ff")]
+        [TestCase (float.PositiveInfinity, "0000807f")]
+        [TestCase (float.NegativeInfinity, "000080ff")]
+        [TestCase (float.NaN, "0000c0ff")]
         public void SingleValue (float value, string data)
         {
             var encodeResult = Encoder.Encode (value, typeof(float));
@@ -149,9 +108,9 @@ namespace KRPC.Client.Test
         [TestCase (0.0, "0000000000000000")]
         [TestCase (-1.0, "000000000000f0bf")]
         [TestCase (3.14159265359, "ea2e4454fb210940")]
-        [TestCase (Double.PositiveInfinity, "000000000000f07f")]
-        [TestCase (Double.NegativeInfinity, "000000000000f0ff")]
-        [TestCase (Double.NaN, "000000000000f8ff")]
+        [TestCase (double.PositiveInfinity, "000000000000f07f")]
+        [TestCase (double.NegativeInfinity, "000000000000f0ff")]
+        [TestCase (double.NaN, "000000000000f8ff")]
         public void DoubleValue (double value, string data)
         {
             var encodeResult = Encoder.Encode (value, typeof(double));
@@ -161,12 +120,12 @@ namespace KRPC.Client.Test
         }
 
         [TestCase (0, "00")]
-        [TestCase (1, "01")]
-        [TestCase (42, "2a")]
-        [TestCase (300, "ac02")]
-        [TestCase (-33, "dfffffffffffffffff01")]
-        [TestCase (Int32.MaxValue, "ffffffff07")]
-        [TestCase (Int32.MinValue, "80808080f8ffffffff01")]
+        [TestCase (1, "02")]
+        [TestCase (42, "54")]
+        [TestCase (300, "d804")]
+        [TestCase (-33, "41")]
+        [TestCase (2147483647, "feffffff0f")]
+        [TestCase (-2147483648, "ffffffff0f")]
         public void Int32Value (int value, string data)
         {
             var encodeResult = Encoder.Encode (value, typeof(int));
@@ -176,13 +135,11 @@ namespace KRPC.Client.Test
         }
 
         [TestCase (0, "00")]
-        [TestCase (1, "01")]
-        [TestCase (42, "2a")]
-        [TestCase (300, "ac02")]
-        [TestCase (1234567890000L, "d088ec8ff723")]
-        [TestCase (-33, "dfffffffffffffffff01")]
-        [TestCase (Int64.MaxValue, "ffffffffffffffff7f")]
-        [TestCase (Int64.MinValue, "80808080808080808001")]
+        [TestCase (1, "02")]
+        [TestCase (42, "54")]
+        [TestCase (300, "d804")]
+        [TestCase (1234567890000L, "a091d89fee47")]
+        [TestCase (-33, "41")]
         public void Int64Value (long value, string data)
         {
             var encodeResult = Encoder.Encode (value, typeof(long));
@@ -195,7 +152,7 @@ namespace KRPC.Client.Test
         [TestCase (1u, "01")]
         [TestCase (42u, "2a")]
         [TestCase (300u, "ac02")]
-        [TestCase (UInt32.MaxValue, "ffffffff0f")]
+        [TestCase (uint.MaxValue, "ffffffff0f")]
         public void UInt32Value (uint value, string data)
         {
             var encodeResult = Encoder.Encode (value, typeof(uint));
@@ -216,7 +173,7 @@ namespace KRPC.Client.Test
         [TestCase (42u, "2a")]
         [TestCase (300u, "ac02")]
         [TestCase (1234567890000ul, "d088ec8ff723")]
-        [TestCase (UInt64.MaxValue, "ffffffffffffffffff01")]
+        [TestCase (ulong.MaxValue, "ffffffffffffffffff01")]
         public void UInt64Value (ulong value, string data)
         {
             var encodeResult = Encoder.Encode (value, typeof(ulong));
@@ -266,63 +223,63 @@ namespace KRPC.Client.Test
             Assert.AreEqual (value.ToByteString (), decodeResult);
         }
 
-        [TestCase (new int[] { }, "")]
-        [TestCase (new [] { 1 }, "0a0101")]
-        [TestCase (new [] { 1, 2, 3, 4 }, "0a01010a01020a01030a0104")]
-        public void ListCollection (IList<int> values, string data)
+        [TestCase (new uint[] { }, "")]
+        [TestCase (new uint[] { 1 }, "0a0101")]
+        [TestCase (new uint[] { 1, 2, 3, 4 }, "0a01010a01020a01030a0104")]
+        public void ListCollection (IList<uint> values, string data)
         {
-            IList<int> value = new List<int> (values);
-            var encodeResult = Encoder.Encode (value, typeof(IList<int>));
+            IList<uint> value = new List<uint> (values);
+            var encodeResult = Encoder.Encode (value, typeof(IList<uint>));
             Assert.AreEqual (data, encodeResult.ToHexString ());
-            var decodeResult = (IList<int>)Encoder.Decode (data.ToByteString (), typeof(IList<int>), null);
+            var decodeResult = (IList<uint>)Encoder.Decode (data.ToByteString (), typeof(IList<uint>), null);
             CollectionAssert.AreEqual (value, decodeResult);
         }
 
-        [TestCase (new string[] { }, new int[]{ }, "")]
-        [TestCase (new [] { "" }, new []{ 0 }, "0a060a0100120100")]
-        [TestCase (new [] { "foo", "bar", "baz" }, new []{ 42, 365, 3 }, "0a090a0403666f6f12012a0a0a0a04036261721202ed020a090a040362617a120103")]
-        public void DictionaryCollection (IList<string> keys, IList<int> values, string data)
+        [TestCase (new string[] { }, new uint[]{ }, "")]
+        [TestCase (new [] { "" }, new uint[]{ 0 }, "0a060a0100120100")]
+        [TestCase (new [] { "foo", "bar", "baz" }, new uint[]{ 42, 365, 3 }, "0a090a0403666f6f12012a0a0a0a04036261721202ed020a090a040362617a120103")]
+        public void DictionaryCollection (IList<string> keys, IList<uint> values, string data)
         {
-            IDictionary<string,int> value = new Dictionary<string,int> ();
+            IDictionary<string,uint> value = new Dictionary<string,uint> ();
             for (int i = 0; i < keys.Count; i++)
                 value [keys [i]] = values [i];
-            var encodeResult = Encoder.Encode (value, typeof(IDictionary<string,int>));
+            var encodeResult = Encoder.Encode (value, typeof(IDictionary<string,uint>));
             Assert.AreEqual (data, encodeResult.ToHexString ());
-            var decodeResult = (IDictionary<string,int>)Encoder.Decode (data.ToByteString (), typeof(IDictionary<string,int>), null);
+            var decodeResult = (IDictionary<string,uint>)Encoder.Decode (data.ToByteString (), typeof(IDictionary<string,uint>), null);
             CollectionAssert.AreEqual (value, decodeResult);
         }
 
-        [TestCase (new int[] { }, "")]
-        [TestCase (new [] { 1 }, "0a0101")]
-        [TestCase (new [] { 1, 2, 3, 4 }, "0a01010a01020a01030a0104")]
-        public void SetCollection (IList<int> values, string data)
+        [TestCase (new uint[] { }, "")]
+        [TestCase (new uint[] { 1 }, "0a0101")]
+        [TestCase (new uint[] { 1, 2, 3, 4 }, "0a01010a01020a01030a0104")]
+        public void SetCollection (IList<uint> values, string data)
         {
-            ISet<int> value = new HashSet<int> (values);
-            var encodeResult = Encoder.Encode (value, typeof(ISet<int>));
+            ISet<uint> value = new HashSet<uint> (values);
+            var encodeResult = Encoder.Encode (value, typeof(ISet<uint>));
             Assert.AreEqual (data, encodeResult.ToHexString ());
-            var decodeResult = (ISet<int>)Encoder.Decode (data.ToByteString (), typeof(ISet<int>), null);
+            var decodeResult = (ISet<uint>)Encoder.Decode (data.ToByteString (), typeof(ISet<uint>), null);
             CollectionAssert.AreEqual (value, decodeResult);
         }
 
         [Test]
         public void TupleCollection1 ()
         {
-            var value = new Tuple<int> (1);
+            var value = new Tuple<uint> (1);
             const string data = "0a0101";
             var encodeResult = Encoder.Encode (value, value.GetType ());
             Assert.AreEqual (data, encodeResult.ToHexString ());
-            var decodeResult = (Tuple<int>)Encoder.Decode (data.ToByteString (), value.GetType (), null);
+            var decodeResult = (Tuple<uint>)Encoder.Decode (data.ToByteString (), value.GetType (), null);
             Assert.AreEqual (value, decodeResult);
         }
 
         [Test]
         public void TupleCollection2 ()
         {
-            var value = new Tuple<int,string,bool> (1, "jeb", false);
+            var value = new Tuple<uint,string,bool> (1, "jeb", false);
             const string data = "0a01010a04036a65620a0100";
             var encodeResult = Encoder.Encode (value, value.GetType ());
             Assert.AreEqual (data, encodeResult.ToHexString ());
-            var decodeResult = (Tuple<int,string,bool>)Encoder.Decode (data.ToByteString (), value.GetType (), null);
+            var decodeResult = (Tuple<uint,string,bool>)Encoder.Decode (data.ToByteString (), value.GetType (), null);
             Assert.AreEqual (value, decodeResult);
         }
     }

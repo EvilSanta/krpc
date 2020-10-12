@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -14,14 +13,14 @@ namespace KRPC.Test.Utils
     [SuppressMessage ("Gendarme.Rules.Smells", "AvoidLongMethodsRule")]
     public class DocumentationExtentionsTest
     {
-        static readonly Type cls = typeof(TestDocumentedClass);
-        static readonly Type staticClass = typeof(TestDocumentedStaticClass);
+        static readonly System.Type cls = typeof(TestDocumentedClass);
+        static readonly System.Type staticClass = typeof(TestDocumentedStaticClass);
         static readonly MethodInfo method = typeof(TestDocumentedClass).GetMethod ("Method", BindingFlags.Public | BindingFlags.Instance);
         static readonly MethodInfo staticMethod = typeof(TestDocumentedClass).GetMethod ("StaticMethod", BindingFlags.Public | BindingFlags.Static);
         static readonly PropertyInfo property = typeof(TestDocumentedClass).GetProperty ("Property", BindingFlags.Public | BindingFlags.Instance);
         static readonly PropertyInfo staticProperty = typeof(TestDocumentedClass).GetProperty ("StaticProperty", BindingFlags.Public | BindingFlags.Static);
         static readonly MethodInfo methodArguments = typeof(TestDocumentedClass).GetMethods ().Single (m => m.Name == "MethodArguments");
-        static readonly Type nestedClass = typeof(TestDocumentedClass.NestedClass);
+        static readonly System.Type nestedClass = typeof(TestDocumentedClass.NestedClass);
         static readonly MethodInfo nestedClassMethod = typeof(TestDocumentedClass.NestedClass).GetMethod ("Method", BindingFlags.Public | BindingFlags.Instance);
 
         static readonly MethodInfo childMethod = typeof(TestDocumentedParentClass).GetMethod ("ChildMethod", BindingFlags.Public | BindingFlags.Instance);
@@ -109,7 +108,7 @@ namespace KRPC.Test.Utils
             new object[] {
                 childGenericStaticProperty,
                 "P:KRPC.Test.Utils.TestDocumentedChildGenericClass`1.ChildGenericStaticProperty"
-            },
+            }
         };
         #pragma warning restore 0414
 
@@ -191,7 +190,7 @@ namespace KRPC.Test.Utils
             },
             new object[] {
                 notDocumented,
-                String.Empty
+                string.Empty
             },
             new object[] {
                 crefDocumentation,
@@ -246,7 +245,7 @@ namespace KRPC.Test.Utils
 
         /// <summary>Method arguments docs</summary>
         [SuppressMessage ("Gendarme.Rules.Performance", "AvoidUnusedParametersRule")]
-        public void MethodArguments (int one, string two, KRPC.Utils.Tuple<int,float,string> three, Response four, TestDocumentedClass.NestedClass five)
+        public void MethodArguments (int one, string two, KRPC.Utils.Tuple<int,float,string> three, Response four, NestedClass five)
         {
         }
 
@@ -278,7 +277,7 @@ namespace KRPC.Test.Utils
         {
         }
 
-        /// <summary>Foo <see cref="TestDocumentedClass.NestedClass"/> bar.</summary>
+        /// <summary>Foo <see cref="NestedClass"/> bar.</summary>
         public void CrefDocumentation ()
         {
         }

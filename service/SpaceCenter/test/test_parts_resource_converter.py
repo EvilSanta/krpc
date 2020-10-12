@@ -1,6 +1,7 @@
 import unittest
 import krpctest
 
+
 class TestPartsResourceConverter(krpctest.TestCase):
 
     @classmethod
@@ -13,8 +14,10 @@ class TestPartsResourceConverter(krpctest.TestCase):
         cls.converter_state = space_center.ResourceConverterState
         cls.harvester_state = space_center.ResourceHarvesterState
         parts = space_center.active_vessel.parts
-        cls.drill = parts.with_title('\'Drill-O-Matic\' Mining Excavator')[0].resource_harvester
-        cls.converter = parts.with_title('Convert-O-Tron 250')[0].resource_converter
+        cls.drill = parts.with_title(
+            '\'Drill-O-Matic\' Mining Excavator')[0].resource_harvester
+        cls.converter = parts.with_title(
+            'Convert-O-Tron 250')[0].resource_converter
         cls.infos = [
             {
                 'name': 'Lf+Ox',
@@ -39,11 +42,16 @@ class TestPartsResourceConverter(krpctest.TestCase):
         ]
 
     def test_properties(self):
+        self.assertAlmostEqual(
+            0.66, self.converter.thermal_efficiency, delta=0.01)
+        self.assertGreater(self.converter.core_temperature, 0)
+        self.assertEqual(1000, self.converter.optimum_core_temperature)
         self.assertEqual(len(self.infos), self.converter.count)
         for i, info in enumerate(self.infos):
             self.assertFalse(self.converter.active(i))
             self.assertEqual(info['name'], self.converter.name(i))
-            self.assertEqual(self.converter_state.idle, self.converter.state(i))
+            self.assertEqual(
+                self.converter_state.idle, self.converter.state(i))
             self.assertEqual('Inactive', self.converter.status_info(i))
             self.assertEqual(info['inputs'], self.converter.inputs(i))
             self.assertEqual(info['outputs'], self.converter.outputs(i))
@@ -57,22 +65,28 @@ class TestPartsResourceConverter(krpctest.TestCase):
             self.wait()
         index = 1
         self.assertFalse(self.converter.active(index))
-        self.assertEqual(self.converter_state.idle, self.converter.state(index))
+        self.assertEqual(
+            self.converter_state.idle, self.converter.state(index))
         self.assertEqual('Inactive', self.converter.status_info(index))
         self.converter.start(index)
         while self.converter.state(index) != self.converter_state.running:
             self.wait()
         self.assertTrue(self.converter.active(index))
-        self.assertEqual(self.converter_state.running, self.converter.state(index))
+        self.assertEqual(
+            self.converter_state.running, self.converter.state(index))
+        self.assertGreater(self.converter.core_temperature, 0)
+        self.assertEqual(1000, self.converter.optimum_core_temperature)
         self.converter.stop(index)
         while self.converter.state(index) != self.converter_state.idle:
             self.wait()
         self.assertFalse(self.converter.active(index))
-        self.assertEqual(self.converter_state.idle, self.converter.state(index))
+        self.assertEqual(
+            self.converter_state.idle, self.converter.state(index))
         self.assertEqual('Inactive', self.converter.status_info(index))
         self.drill.deployed = False
         while self.drill.state != self.harvester_state.retracted:
             self.wait()
+
 
 if __name__ == '__main__':
     unittest.main()

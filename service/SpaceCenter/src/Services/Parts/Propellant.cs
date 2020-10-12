@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using KRPC.Service.Attributes;
 using KRPC.Utils;
 
@@ -17,6 +15,7 @@ namespace KRPC.SpaceCenter.Services.Parts
 
         internal Propellant (global::Propellant propellantResource, global::Part underlyingPart)
         {
+            propellantResource.UpdateConnectedResources(underlyingPart);
             resourceId = propellantResource.id;
             partId = underlyingPart.flightID;
         }
@@ -85,7 +84,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The total amount of the underlying resource currently reachable given resource flow rules.
+        /// The total amount of the underlying resource currently reachable given
+        /// resource flow rules.
         /// </summary>
         // TODO: units?
         [KRPCProperty]
@@ -95,7 +95,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The total vehicle capacity for the underlying propellant resource, restricted by resource flow rules.
+        /// The total vehicle capacity for the underlying propellant resource,
+        /// restricted by resource flow rules.
         /// </summary>
         // TODO: units?
         [KRPCProperty]
@@ -105,7 +106,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// If this propellant should be ignored when calculating required mass flow given specific impulse.
+        /// If this propellant should be ignored when calculating required mass flow
+        /// given specific impulse.
         /// </summary>
         // TODO: units?
         [KRPCProperty]
@@ -148,16 +150,6 @@ namespace KRPC.SpaceCenter.Services.Parts
         public float Ratio {
             get
             { return InternalPropellant.ratio; }
-        }
-
-        /// <summary>
-        /// The reachable resources connected to this propellant.
-        /// </summary>
-        [KRPCProperty]
-        public IList<Resource> ConnectedResources {
-            get {
-                return InternalPropellant.connectedResources.Select (resource => new Resource (resource)).ToList ();
-            }
         }
     }
 }

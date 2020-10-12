@@ -23,7 +23,7 @@ namespace TestingTools
             get {
                 var title = HighLogic.CurrentGame.Title.Split (' ');
                 var name = title.Take (title.Length - 1).ToArray ();
-                return String.Join (" ", name);
+                return string.Join (" ", name);
             }
         }
 
@@ -62,7 +62,7 @@ namespace TestingTools
         {
             var celestialBody = FlightGlobals.Bodies.First (b => b.bodyName == body);
             var semiMajorAxis = celestialBody.Radius + altitude;
-            OrbitTools.OrbitDriver.orbit.Set (OrbitTools.CreateOrbit (celestialBody, semiMajorAxis, 0, 0, 0, 0, 0, 0));
+            FlightGlobals.ActiveVessel.SetOrbit(OrbitTools.CreateOrbit(celestialBody, semiMajorAxis, 0, 0, 0, 0, 0, 0));
             throw new YieldException (new ParameterizedContinuationVoid<int> (WaitForVesselSwitch, 0));
         }
 
@@ -74,14 +74,14 @@ namespace TestingTools
         public static void SetOrbit (string body, double semiMajorAxis, double eccentricity, double inclination, double longitudeOfAscendingNode, double argumentOfPeriapsis, double meanAnomalyAtEpoch, double epoch)
         {
             var celestialBody = FlightGlobals.Bodies.First (b => b.bodyName == body);
-            OrbitTools.OrbitDriver.orbit.Set (OrbitTools.CreateOrbit (celestialBody, semiMajorAxis, eccentricity, inclination, longitudeOfAscendingNode, argumentOfPeriapsis, meanAnomalyAtEpoch, epoch));
+            FlightGlobals.ActiveVessel.SetOrbit(OrbitTools.CreateOrbit(celestialBody, semiMajorAxis, eccentricity, inclination, longitudeOfAscendingNode, argumentOfPeriapsis, meanAnomalyAtEpoch, epoch));
             throw new YieldException (new ParameterizedContinuationVoid<int> (WaitForVesselSwitch, 0));
         }
 
         static Quaternion ZeroRotation {
             get {
                 var vessel = FlightGlobals.ActiveVessel;
-                var vesselCoM = vessel.findWorldCenterOfMass ();
+                var vesselCoM = vessel.CoM;
                 var right = vesselCoM - vessel.mainBody.position;
                 var northPole = vessel.mainBody.position + ((Vector3d)vessel.mainBody.transform.up) * vessel.mainBody.Radius - vesselCoM;
                 northPole.Normalize ();

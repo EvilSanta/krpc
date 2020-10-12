@@ -7,7 +7,7 @@ namespace KRPC.SpaceCenter
     /// Addon to load external APIs.
     /// </summary>
     [KSPAddon (KSPAddon.Startup.Flight, false)]
-    sealed public class ExternalAPIAddon : MonoBehaviour
+    public sealed class ExternalAPIAddon : MonoBehaviour
     {
         /// <summary>
         /// Load external APIs.
@@ -15,6 +15,7 @@ namespace KRPC.SpaceCenter
         [SuppressMessage ("Gendarme.Rules.Correctness", "MethodCanBeMadeStaticRule")]
         public void Start ()
         {
+            ExternalAPI.AGX.Load ();
             ExternalAPI.FAR.Load ();
             ExternalAPI.RemoteTech.Load ();
         }

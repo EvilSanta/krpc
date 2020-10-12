@@ -1,6 +1,8 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using KRPC.SpaceCenter.Services;
+using KRPC.Utils;
 using UnityEngine;
 
 namespace KRPC.SpaceCenter.ExtensionMethods
@@ -13,16 +15,36 @@ namespace KRPC.SpaceCenter.ExtensionMethods
         [SuppressMessage ("Gendarme.Rules.Design.Generic", "AvoidMethodWithUnusedGenericTypeRule")]
         public static bool HasModule<T> (this Part part) where T : PartModule
         {
-            return part.Modules.OfType<T> ().Any ();
+            return part.Modules.Contains<T> ();
         }
 
         /// <summary>
-        /// Returns the first part module of the specified type, and null if none can be found
+        /// Returns true if the part contains the given part module
+        /// </summary>
+        public static bool HasModule (this Part part, string module)
+        {
+            return part.Modules.Contains (module);
+        }
+
+        /// <summary>
+        /// Returns the first part module of the specified type, or null if none can be found
         /// </summary>
         [SuppressMessage ("Gendarme.Rules.Design.Generic", "AvoidMethodWithUnusedGenericTypeRule")]
         public static T Module<T> (this Part part) where T : PartModule
         {
             return part.Modules.OfType<T> ().FirstOrDefault ();
+        }
+
+        /// <summary>
+        /// Returns the first part module of the named type, or null if none can be found
+        /// </summary>
+        public static PartModule Module (this Part part, string type)
+        {
+            foreach (var module in part.Modules) {
+                if (module.GetType ().Name == type)
+                    return module;
+            }
+            return null;
         }
 
         /// <summary>
@@ -54,37 +76,31 @@ namespace KRPC.SpaceCenter.ExtensionMethods
         /// Transversed the tree of parts from the desired part to the root, and finds the activation stage
         /// for the first decoupler that will decouple the part (the one with the highest stage number)
         /// </summary>
+        [SuppressMessage ("Gendarme.Rules.Maintainability", "AvoidComplexMethodsRule")]
         public static int DecoupledAt (this Part part)
         {
             int stage = -1;
             do {
                 int candidate = -1;
                 var parent = part.parent;
-                var moduleDecouple = part.Module<ModuleDecouple> ();
-                var moduleAnchoredDecoupler = part.Module<ModuleAnchoredDecoupler> ();
+                var decoupler = new Compatibility.ModuleDecoupler(part);
 
                 // If the part will decouple itself from its parent, use the parts activation stage
                 if (part.HasModule<LaunchClamp> ()) {
                     candidate = part.inverseStage;
-                } else if (moduleDecouple != null && moduleDecouple.isEnabled) {
-                    if (moduleDecouple.isOmniDecoupler)
+                } else if (decoupler.Instance != null && decoupler.IsEnabled) {
+                    if (decoupler.IsOmniDecoupler)
                         candidate = part.inverseStage;
-                    else if (parent != null && moduleDecouple.ExplosiveNode != null && moduleDecouple.ExplosiveNode.attachedPart == parent)
-                        candidate = part.inverseStage;
-                } else if (moduleAnchoredDecoupler != null && moduleAnchoredDecoupler.isEnabled) {
-                    if (parent != null && moduleAnchoredDecoupler.ExplosiveNode != null && moduleAnchoredDecoupler.ExplosiveNode.attachedPart == parent)
+                    else if (parent != null && decoupler.ExplosiveNode != null && decoupler.ExplosiveNode.attachedPart == parent)
                         candidate = part.inverseStage;
                 }
 
                 // If the part will be decoupled by its parent, use the parents activation stage
                 if (candidate == -1 && parent != null) {
-                    if (moduleDecouple != null) {
-                        if (moduleDecouple.isOmniDecoupler && moduleDecouple.isEnabled)
+                    if (decoupler.Instance != null) {
+                        if (decoupler.IsOmniDecoupler && decoupler.IsEnabled)
                             candidate = parent.inverseStage;
-                        else if (moduleDecouple.ExplosiveNode != null && moduleDecouple.ExplosiveNode.attachedPart == part)
-                            candidate = parent.inverseStage;
-                    } else if (moduleAnchoredDecoupler != null && moduleAnchoredDecoupler.isEnabled) {
-                        if (moduleAnchoredDecoupler.ExplosiveNode != null && moduleAnchoredDecoupler.ExplosiveNode.attachedPart == part)
+                        else if (decoupler.ExplosiveNode != null && decoupler.ExplosiveNode.attachedPart == part)
                             candidate = parent.inverseStage;
                     }
                 }
@@ -101,6 +117,31 @@ namespace KRPC.SpaceCenter.ExtensionMethods
         public static Vector3d CenterOfMass (this Part part)
         {
             return part.rb != null ? part.rb.worldCenterOfMass : part.transform.position;
+        }
+
+        /// <summary>
+        /// Computes the axis-aligned bounding box for a part in the given reference frame.
+        /// </summary>
+        /// <remarks>
+        /// This is an expensive calculation. It iterates over the parts collider meshes
+        /// to compute a tight axis-aligned bounding box.
+        /// It does not use part.collider.bounds, as this is aligned to world space and
+        /// would not provide a tight bounding box in the given reference frame.
+        /// </remarks>
+        public static Bounds GetBounds (this Part part, ReferenceFrame referenceFrame)
+        {
+            var bounds = new Bounds (referenceFrame.PositionFromWorldSpace (part.WCoM), Vector3.zero);
+            var meshes = part.GetComponentsInChildren<MeshFilter> ();
+            for (int i = 0; i < meshes.Length; i++) {
+                var mesh = meshes [i];
+                var vertices = mesh.mesh.bounds.ToVertices ();
+                for (int j = 0; j < vertices.Length; j++) {
+                    // mesh space -> world space -> reference frame space
+                    var vertex = referenceFrame.PositionFromWorldSpace (mesh.transform.TransformPoint (vertices [j]));
+                    bounds.Encapsulate (vertex);
+                }
+            }
+            return bounds;
         }
     }
 }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using KRPC.Server;
 
 namespace KRPC.UI
@@ -8,22 +9,34 @@ namespace KRPC.UI
 
         protected override void Init ()
         {
+            Name = "krpc-client-connecting";
             Title = "kRPC";
-            Options.Add (new DialogGUIButton ("Yes, disconnect the client", () => {
-                client.Close ();
-                Close ();
-            }));
-            Options.Add (new DialogGUIButton ("No, don't disconnect the client", Close));
+        }
+
+        protected override IList<DialogGUIButton> Options {
+            get {
+                var options = new List<DialogGUIButton> ();
+                options.Add (new DialogGUIButton ("Yes", () => {
+                    client.Close ();
+                    Close ();
+                }));
+                options.Add (new DialogGUIButton ("Yes (don't ask again)", () => {
+                    client.Close ();
+                    Close ();
+                    Addon.config.Configuration.ConfirmRemoveClient = false;
+                    Addon.config.Save ();
+                }));
+                options.Add (new DialogGUIButton ("No", Close));
+                return options;
+            }
         }
 
         protected override void Opened ()
         {
             var clientName = client.Name;
-            var clientAddress = client.Address;
-            if (clientName.Length == 0)
-                Message = "Are you sure you want to disconnect the client at address " + clientAddress + "?";
-            else
-                Message = "Are you sure you want to disconnect '" + clientName + "' at address " + clientAddress + "?";
+            Message = "Are you sure you want to disconnect " +
+            (clientName.Length == 0 ? "the client" : "'" + clientName + "'") +
+            " at address " + client.Address + "?";
         }
 
         protected override void Closed ()

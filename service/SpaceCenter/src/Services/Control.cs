@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using KRPC.Continuations;
+using KRPC.Service;
 using KRPC.Service.Attributes;
 using KRPC.SpaceCenter.ExtensionMethods;
+using KRPC.SpaceCenter.ExternalAPI;
 using KRPC.Utils;
 using KSP.UI.Screens;
 
@@ -20,14 +22,16 @@ namespace KRPC.SpaceCenter.Services
     /// Control inputs (such as pitch, yaw and roll) are zeroed when all clients
     /// that have set one or more of these inputs are no longer connected.
     /// </remarks>
-    [KRPCClass (Service = "SpaceCenter")]
+    [KRPCClass (Service = "SpaceCenter", GameScene = GameScene.Flight)]
     public class Control : Equatable<Control>
     {
         readonly Guid vesselId;
+        readonly Parts.Parts parts;
 
         internal Control (global::Vessel vessel)
         {
             vesselId = vessel.id;
+            parts = new Vessel (vessel).Parts;
         }
 
         /// <summary>
@@ -51,6 +55,22 @@ namespace KRPC.SpaceCenter.Services
         /// </summary>
         public global::Vessel InternalVessel {
             get { return FlightGlobalsExtensions.GetVesselById (vesselId); }
+        }
+
+        /// <summary>
+        /// The control state of the vessel.
+        /// </summary>
+        [KRPCProperty]
+        public ControlState State {
+            get { return InternalVessel.Connection.ControlState.ToControlState (); }
+        }
+
+        /// <summary>
+        /// The source of the vessels control, for example by a kerbal or a probe core.
+        /// </summary>
+        [KRPCProperty]
+        public ControlSource Source {
+            get { return InternalVessel.Connection.ControlState.ToControlSource (); }
         }
 
         /// <summary>
@@ -118,12 +138,72 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
+        /// Returns whether all reactive wheels on the vessel are active,
+        /// and sets the active state of all reaction wheels.
+        /// See <see cref="Parts.ReactionWheel.Active"/>.
+        /// </summary>
+        [KRPCProperty]
+        public bool ReactionWheels {
+            get { return parts.ReactionWheels.All (part => part.Active); }
+            set {
+                foreach (var part in parts.ReactionWheels)
+                    part.Active = value;
+            }
+        }
+
+        /// <summary>
         /// The state of the landing gear/legs.
         /// </summary>
         [KRPCProperty]
         public bool Gear {
             get { return InternalVessel.ActionGroups.groups [BaseAction.GetGroupIndex (KSPActionGroup.Gear)]; }
             set { InternalVessel.ActionGroups.SetGroup (KSPActionGroup.Gear, value); }
+        }
+
+        /// <summary>
+        /// Deploy or retract all wheels of the given type.
+        /// </summary>
+        void DeployWheels(WheelType wheelType, bool state)
+        {
+            foreach (var part in InternalVessel.parts)
+            {
+                foreach (var deployment in part.FindModulesImplementing<ModuleWheels.ModuleWheelDeployment>())
+                {
+                    var gear = part.Modules[deployment.baseModuleIndex] as ModuleWheelBase;
+                    if (gear != null && gear.wheelType == wheelType)
+                    {
+                        deployment.ActionToggle(new KSPActionParam(0, state ? KSPActionType.Activate : KSPActionType.Deactivate));
+                    }
+                }
+            }
+
+        }
+
+        /// <summary>
+        /// Returns whether all landing legs on the vessel are deployed,
+        /// and sets the deployment state of all landing legs.
+        /// Does not include wheels (for example landing gear).
+        /// See <see cref="Parts.Leg.Deployed"/>.
+        /// </summary>
+        [KRPCProperty]
+        public bool Legs {
+            get { return parts.Legs.All (part => part.Deployed); }
+            set { DeployWheels(WheelType.LEG, value); }
+        }
+
+        /// <summary>
+        /// Returns whether all wheels on the vessel are deployed,
+        /// and sets the deployment state of all wheels.
+        /// Does not include landing legs.
+        /// See <see cref="Parts.Wheel.Deployed"/>.
+        /// </summary>
+        [KRPCProperty]
+        public bool Wheels {
+            get { return parts.Wheels.All (part => part.Deployed); }
+            set {
+                DeployWheels(WheelType.FREE, value);
+                DeployWheels(WheelType.MOTORIZED, value);
+            }
         }
 
         /// <summary>
@@ -145,6 +225,124 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
+        /// Returns whether all antennas on the vessel are deployed,
+        /// and sets the deployment state of all antennas.
+        /// See <see cref="Parts.Antenna.Deployed"/>.
+        /// </summary>
+        [KRPCProperty]
+        public bool Antennas {
+            get { return parts.Antennas.All (part => part.Deployed); }
+            set {
+                foreach (var part in parts.Antennas)
+                    if (part.Deployable)
+                            part.Deployed = value;
+            }
+        }
+
+        /// <summary>
+        /// Returns whether any of the cargo bays on the vessel are open,
+        /// and sets the open state of all cargo bays.
+        /// See <see cref="Parts.CargoBay.Open"/>.
+        /// </summary>
+        [KRPCProperty]
+        public bool CargoBays {
+            get { return parts.CargoBays.Any (part => part.Open); }
+            set {
+                foreach (var part in parts.CargoBays)
+                    part.Open = value;
+            }
+        }
+
+        /// <summary>
+        /// Returns whether all of the air intakes on the vessel are open,
+        /// and sets the open state of all air intakes.
+        /// See <see cref="Parts.Intake.Open"/>.
+        /// </summary>
+        [KRPCProperty]
+        public bool Intakes {
+            get { return parts.Intakes.All (part => part.Open); }
+            set {
+                foreach (var part in parts.Intakes)
+                    part.Open = value;
+            }
+        }
+
+        /// <summary>
+        /// Returns whether all parachutes on the vessel are deployed,
+        /// and sets the deployment state of all parachutes.
+        /// Cannot be set to <c>false</c>.
+        /// See <see cref="Parts.Parachute.Deployed"/>.
+        /// </summary>
+        [KRPCProperty]
+        public bool Parachutes {
+            get { return parts.Parachutes.All (part => part.Deployed); }
+            set {
+                if (!value)
+                    throw new ArgumentException ("Cannot 'un-deploy' parachutes", nameof (Parachutes));
+                foreach (var part in parts.Parachutes)
+                    part.Deploy ();
+            }
+        }
+
+        /// <summary>
+        /// Returns whether all radiators on the vessel are deployed,
+        /// and sets the deployment state of all radiators.
+        /// See <see cref="Parts.Radiator.Deployed"/>.
+        /// </summary>
+        [KRPCProperty]
+        public bool Radiators {
+            get { return parts.Radiators.All (part => part.Deployed); }
+            set {
+                foreach (var part in parts.Radiators)
+                    if (part.Deployable)
+                            part.Deployed = value;
+            }
+        }
+
+        /// <summary>
+        /// Returns whether all of the resource harvesters on the vessel are deployed,
+        /// and sets the deployment state of all resource harvesters.
+        /// See <see cref="Parts.ResourceHarvester.Deployed"/>.
+        /// </summary>
+        [KRPCProperty]
+        public bool ResourceHarvesters {
+            get { return parts.ResourceHarvesters.All (part => part.Deployed); }
+            set {
+                foreach (var part in parts.ResourceHarvesters)
+                    part.Deployed = value;
+            }
+        }
+
+        /// <summary>
+        /// Returns whether any of the resource harvesters on the vessel are active,
+        /// and sets the active state of all resource harvesters.
+        /// See <see cref="Parts.ResourceHarvester.Active"/>.
+        /// </summary>
+        [KRPCProperty]
+        public bool ResourceHarvestersActive {
+            get { return parts.ResourceHarvesters.Any (part => part.Active); }
+            set {
+                foreach (var part in parts.ResourceHarvesters)
+                    part.Active = value;
+            }
+        }
+
+        /// <summary>
+        /// Returns whether all solar panels on the vessel are deployed,
+        /// and sets the deployment state of all solar panels.
+        /// See <see cref="Parts.SolarPanel.Deployed"/>.
+        /// </summary>
+        [KRPCProperty]
+        public bool SolarPanels {
+            get { return parts.SolarPanels.All (part => part.Deployed); }
+            set {
+                foreach (var part in parts.SolarPanels)
+                    if (part.Deployable)
+                        part.Deployed = value;
+            }
+        }
+
+        /// <summary>
         /// The state of the abort action group.
         /// </summary>
         [KRPCProperty]
@@ -160,6 +358,20 @@ namespace KRPC.SpaceCenter.Services
         public float Throttle {
             get { return PilotAddon.Get (InternalVessel).Throttle; }
             set { PilotAddon.Set (InternalVessel).Throttle = value; }
+        }
+
+        /// <summary>
+        /// Sets the behavior of the pitch, yaw, roll and translation control inputs.
+        /// When set to additive, these inputs are added to the vessels current inputs.
+        /// This mode is the default.
+        /// When set to override, these inputs (if non-zero) override the vessels inputs.
+        /// This mode prevents keyboard control, or SAS, from interfering with the controls when
+        /// they are set.
+        /// </summary>
+        [KRPCProperty]
+        public ControlInputMode InputMode {
+            get { return PilotAddon.Set (InternalVessel).InputMode; }
+            set { PilotAddon.Set (InternalVessel).InputMode = value; }
         }
 
         /// <summary>
@@ -264,10 +476,18 @@ namespace KRPC.SpaceCenter.Services
         /// Activates the next stage. Equivalent to pressing the space bar in-game.
         /// </summary>
         /// <returns>A list of vessel objects that are jettisoned from the active vessel.</returns>
+        /// <remarks>
+        /// When called, the active vessel may change. It is therefore possible that,
+        /// after calling this function, the object(s) returned by previous call(s) to
+        /// <see cref="SpaceCenter.ActiveVessel"/> no longer refer to the active vessel.
+        /// Throws an exception if staging is locked.
+        /// </remarks>
         [KRPCMethod]
         public IList<Vessel> ActivateNextStage ()
         {
             CheckActiveVessel ();
+            if (StageLock)
+                throw new InvalidOperationException("Staging is locked");
             if (!StageManager.CanSeparate)
                 throw new YieldException (new ParameterizedContinuation<IList<Vessel>> (ActivateNextStage));
             var preVessels = FlightGlobals.Vessels.ToArray ();
@@ -284,41 +504,89 @@ namespace KRPC.SpaceCenter.Services
         }
 
         /// <summary>
-        /// Returns <c>true</c> if the given action group is enabled.
+        /// Whether staging is locked on the vessel.
         /// </summary>
-        /// <param name="group">A number between 0 and 9 inclusive.</param>
-        [KRPCMethod]
-        public bool GetActionGroup (uint group)
+        /// <remarks>
+        /// This is equivalent to locking the staging using Alt+L
+        /// </remarks>
+        [KRPCProperty]
+        [SuppressMessage("Gendarme.Rules.Correctness", "MethodCanBeMadeStaticRule")]
+        public bool StageLock
         {
-            if (group > 9)
-                throw new ArgumentException ("Action group must be between 0 and 9 inclusive");
-            return InternalVessel.ActionGroups.groups [BaseAction.GetGroupIndex (ActionGroupExtensions.GetActionGroup (group))];
+            get { return InputLockManager.GetControlLock("manualStageLock") == ControlTypes.STAGING; }
+            set {
+                if (value)
+                    InputLockManager.SetControlLock(ControlTypes.STAGING, "manualStageLock");
+                else
+                    InputLockManager.RemoveControlLock("manualStageLock");
+            }
         }
 
         /// <summary>
-        /// Sets the state of the given action group (a value between 0 and 9
-        /// inclusive).
+        /// Returns <c>true</c> if the given action group is enabled.
         /// </summary>
-        /// <param name="group">A number between 0 and 9 inclusive.</param>
+        /// <param name="group">
+        /// A number between 0 and 9 inclusive,
+        /// or between 0 and 250 inclusive when the <a href="https://forum.kerbalspaceprogram.com/index.php?/topic/67235-122dec1016-action-groups-extended-250-action-groups-in-flight-editing-now-kosremotetech/">Extended Action Groups mod</a> is installed.
+        /// </param>
+        [KRPCMethod]
+        public bool GetActionGroup (uint group)
+        {
+            var vessel = InternalVessel;
+            if (AGX.IsAvailable) {
+                if (group > 250)
+                    throw new ArgumentException ("Action group must be between 0 and 250 inclusive");
+                return AGX.AGX2VslGroupState (vessel.rootPart.flightID, (int)group);
+            } else {
+                if (group > 9)
+                    throw new ArgumentException ("Action group must be between 0 and 9 inclusive");
+                return vessel.ActionGroups.groups [BaseAction.GetGroupIndex (ActionGroupExtensions.GetActionGroup (group))];
+            }
+        }
+
+        /// <summary>
+        /// Sets the state of the given action group.
+        /// </summary>
+        /// <param name="group">
+        /// A number between 0 and 9 inclusive,
+        /// or between 0 and 250 inclusive when the <a href="https://forum.kerbalspaceprogram.com/index.php?/topic/67235-122dec1016-action-groups-extended-250-action-groups-in-flight-editing-now-kosremotetech/">Extended Action Groups mod</a> is installed.
+        /// </param>
         /// <param name="state"></param>
         [KRPCMethod]
         public void SetActionGroup (uint group, bool state)
         {
-            if (group > 9)
-                throw new ArgumentException ("Action group must be between 0 and 9 inclusive");
-            InternalVessel.ActionGroups.SetGroup (ActionGroupExtensions.GetActionGroup (group), state);
+            var vessel = InternalVessel;
+            if (AGX.IsAvailable) {
+                if (group > 250)
+                    throw new ArgumentException ("Action group must be between 0 and 250 inclusive");
+                AGX.AGX2VslActivateGroup (vessel.rootPart.flightID, (int)group, state);
+            } else {
+                if (group > 9)
+                    throw new ArgumentException ("Action group must be between 0 and 9 inclusive");
+                vessel.ActionGroups.SetGroup (ActionGroupExtensions.GetActionGroup (group), state);
+            }
         }
 
         /// <summary>
         /// Toggles the state of the given action group.
         /// </summary>
-        /// <param name="group">A number between 0 and 9 inclusive.</param>
+        /// <param name="group">
+        /// A number between 0 and 9 inclusive,
+        /// or between 0 and 250 inclusive when the <a href="https://forum.kerbalspaceprogram.com/index.php?/topic/67235-122dec1016-action-groups-extended-250-action-groups-in-flight-editing-now-kosremotetech/">Extended Action Groups mod</a> is installed.
+        /// </param>
         [KRPCMethod]
         public void ToggleActionGroup (uint group)
         {
-            if (group > 9)
-                throw new ArgumentException ("Action group must be between 0 and 9 inclusive");
-            InternalVessel.ActionGroups.ToggleGroup (ActionGroupExtensions.GetActionGroup (group));
+            var vessel = InternalVessel;
+            if (AGX.IsAvailable) {
+                if (group > 250)
+                    throw new ArgumentException ("Action group must be between 0 and 250 inclusive");
+                AGX.AGX2VslToggleGroup (vessel.rootPart.flightID, (int)group);
+            } else {
+                if (group > 9)
+                    throw new ArgumentException ("Action group must be between 0 and 9 inclusive");
+                vessel.ActionGroups.ToggleGroup (ActionGroupExtensions.GetActionGroup (group));
+            }
         }
 
         /// <summary>
@@ -356,8 +624,7 @@ namespace KRPC.SpaceCenter.Services
         public void RemoveNodes ()
         {
             CheckManeuverNodes ();
-            var nodes = FlightGlobals.ActiveVessel.patchedConicSolver.maneuverNodes.ToList ();
-            foreach (var node in nodes)
+            foreach (var node in InternalVessel.patchedConicSolver.maneuverNodes.ToArray ())
                 node.RemoveSelf ();
             // TODO: delete the Node objects
         }

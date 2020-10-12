@@ -6,6 +6,7 @@ def lookup_cref(cref, services):
             objs.extend(service.members.values())
             objs.extend(service.classes.values())
             objs.extend(service.enumerations.values())
+            objs.extend(service.exceptions.values())
             for cls in service.classes.values():
                 objs.extend(cls.members.values())
             for enumeration in service.enumerations.values():
@@ -14,5 +15,6 @@ def lookup_cref(cref, services):
                     objs.append(value)
         lookup_cref.services_lookup = dict([(x.cref, x) for x in objs])
     return lookup_cref.services_lookup[cref]
+
 
 lookup_cref.services_lookup = None

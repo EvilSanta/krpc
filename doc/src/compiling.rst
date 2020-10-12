@@ -10,34 +10,33 @@ line:
 
 .. code-block:: bash
 
-   git clone http://github.com/krpc/krpc
+   git clone https://github.com/krpc/krpc
 
 Install Dependencies
 --------------------
 
-Next you need to install `Bazel <http://bazel.io>`_. This is the build system
+Next you need to install `Bazel <https://bazel.io>`_. This is the build system
 used to compile the project.
 
 The Bazel build scripts will automatically download most of the required
 dependencies for the project, but the following need to be installed manually on
 your system:
 
- * `Mono C# compiler, runtime and tools <http://www.mono-project.com/download/>`_
- * Python and virtualenv
+ * `Mono C# compiler, runtime and tools <https://www.mono-project.com/download/>`_
+ * Python 3.4 or higher, and virtualenv
  * Autotools
  * LuaRocks
  * pdflatex, rsvg, libxml, libxslt and python headers (for building the documentation)
 
-To install these dependencies via apt on Ubuntu, first follow the instructions
-on `Mono's website
-<http://www.mono-project.com/docs/getting-started/install/linux/#debian-ubuntu-and-derivatives>`_
-to add their apt repository. Then run the following command:
+To install these dependencies via apt on Ubuntu, first follow the instructions on `Mono's website
+<http://www.mono-project.com/download>`_ to add their apt repository. Then run the following
+command:
 
 .. code-block:: bash
 
-   sudo apt-get install mono-complete python-setuptools python-virtualenv \
-   python-dev autoconf libtool luarocks texlive-latex-base \
-   texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra \
+   sudo apt-get install mono-complete python3-setuptools python3-virtualenv \
+   python3-dev autoconf libtool luarocks texlive-latex-base \
+   texlive-latex-recommended texlive-fonts-recommended \
    libxml2-dev libxslt1-dev librsvg2-bin
 
 Set Up your Environment
@@ -116,6 +115,20 @@ Running the Tests
 
 kRPC contains a suite of tests for the server plugin, services, client
 libraries and others.
+
+To run the tests, the following dependencies should be installed. Without them, some of the tests
+will fail.
+
+ * Python 2.7
+ * Gendarme
+ * CppCheck
+ * socat
+
+To install these dependencies via apt on Ubuntu run the following command:
+
+.. code-block:: bash
+
+   sudo apt-get install gendarme cppcheck socat
 
 The tests, which do not require KSP to be running, can be executed using:
 ``bazel test //:test``

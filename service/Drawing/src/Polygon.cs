@@ -4,8 +4,6 @@ using System.Linq;
 using KRPC.Service.Attributes;
 using KRPC.SpaceCenter.ExtensionMethods;
 using KRPC.SpaceCenter.Services;
-using KRPC.UI.ExtensionMethods;
-using KRPC.Utils;
 using UnityEngine;
 using Tuple3 = KRPC.Utils.Tuple<double, double, double>;
 
@@ -29,7 +27,9 @@ namespace KRPC.Drawing
             renderer = GameObject.GetComponent<LineRenderer> ();
             renderer.useWorldSpace = true;
             var numVertices = polygonVertices.Count + 1;
+            #pragma warning disable 618
             renderer.SetVertexCount (numVertices);
+            #pragma warning restore
             for (int i = 0; i < numVertices; i++)
                 renderer.SetPosition (i, Vector3d.zero);
             vertices = polygonVertices;
@@ -80,7 +80,9 @@ namespace KRPC.Drawing
             set {
                 color = value;
                 var rgbColor = color.ToColor ();
+                #pragma warning disable 618
                 renderer.SetColors (rgbColor, rgbColor);
+                #pragma warning restore
             }
         }
 
@@ -92,7 +94,9 @@ namespace KRPC.Drawing
             get { return thickness; }
             set {
                 thickness = value;
+                #pragma warning disable 618
                 renderer.SetWidth (thickness, thickness);
+                #pragma warning restore
             }
         }
     }

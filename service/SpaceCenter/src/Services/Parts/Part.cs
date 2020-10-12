@@ -9,6 +9,8 @@ using KRPC.Utils;
 using UnityEngine;
 using Tuple3 = KRPC.Utils.Tuple<double, double, double>;
 using Tuple4 = KRPC.Utils.Tuple<double, double, double, double>;
+using TupleV3 = KRPC.Utils.Tuple<Vector3d, Vector3d>;
+using TupleT3 = KRPC.Utils.Tuple<KRPC.Utils.Tuple<double, double, double>, KRPC.Utils.Tuple<double, double, double>>;
 
 namespace KRPC.SpaceCenter.Services.Parts
 {
@@ -27,7 +29,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         public Part (global::Part part)
         {
             if (ReferenceEquals (part, null))
-                throw new ArgumentNullException ("part");
+                throw new ArgumentNullException (nameof (part));
             partFlightId = part.flightID;
         }
 
@@ -56,7 +58,7 @@ namespace KRPC.SpaceCenter.Services.Parts
 
         /// <summary>
         /// Internal name of the part, as used in
-        /// <a href="http://wiki.kerbalspaceprogram.com/wiki/CFG_File_Documentation">part cfg files</a>.
+        /// <a href="https://wiki.kerbalspaceprogram.com/wiki/CFG_File_Documentation">part cfg files</a>.
         /// For example "Mark1-2Pod".
         /// </summary>
         [KRPCProperty]
@@ -70,6 +72,51 @@ namespace KRPC.SpaceCenter.Services.Parts
         [KRPCProperty]
         public string Title {
             get { return InternalPart.partInfo.title; }
+        }
+
+        /// <summary>
+        /// The name tag for the part. Can be set to a custom string using the
+        /// in-game user interface.
+        /// </summary>
+        /// <remarks>
+        /// This string is shared with
+        /// <a href="https://forum.kerbalspaceprogram.com/index.php?/topic/61827-/">kOS</a>
+        /// if it is installed.
+        /// </remarks>
+        [KRPCProperty]
+        public string Tag {
+            get {
+                var module = InternalPart.Module ("KOSNameTag");
+                return (string)module.GetType ().GetField ("nameTag").GetValue (module);
+            }
+            set {
+                var module = InternalPart.Module ("KOSNameTag");
+                module.GetType ().GetField ("nameTag").SetValue (module, value);
+            }
+        }
+
+        /// <summary>
+        /// Whether the part is highlighted.
+        /// </summary>
+        [KRPCProperty]
+        public bool Highlighted {
+            get { return InternalPart.HighlightActive; }
+            set {
+                var part = InternalPart;
+                if (value)
+                    PartHighlightAddon.Add (part);
+                else
+                    PartHighlightAddon.Remove (part);
+            }
+        }
+
+        /// <summary>
+        /// The color used to highlight the part, as an RGB triple.
+        /// </summary>
+        [KRPCProperty]
+        public Tuple3 HighlightColor {
+            get { return InternalPart.highlightColor.ToTuple (); }
+            set { InternalPart.highlightColor = value.ToColor (); }
         }
 
         /// <summary>
@@ -94,16 +141,18 @@ namespace KRPC.SpaceCenter.Services.Parts
 
         /// <summary>
         /// The parts parent. Returns <c>null</c> if the part does not have a parent.
-        /// This, in combination with <see cref="Part.Children"/>, can be used to traverse the vessels parts tree.
+        /// This, in combination with <see cref="Children"/>, can be used to traverse the vessels
+        /// parts tree.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public Part Parent {
             get { return HasParent ? new Part (InternalPart.parent) : null; }
         }
 
         /// <summary>
         /// The parts children. Returns an empty list if the part has no children.
-        /// This, in combination with <see cref="Part.Parent"/>, can be used to traverse the vessels parts tree.
+        /// This, in combination with <see cref="Parent"/>, can be used to traverse the vessels
+        /// parts tree.
         /// </summary>
         [KRPCProperty]
         public IList<Part> Children {
@@ -130,7 +179,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The stage in which this part will be activated. Returns -1 if the part is not activated by staging.
+        /// The stage in which this part will be activated. Returns -1 if the part is not
+        /// activated by staging.
         /// </summary>
         [KRPCProperty]
         public int Stage {
@@ -141,7 +191,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The stage in which this part will be decoupled. Returns -1 if the part is never decoupled from the vessel.
+        /// The stage in which this part will be decoupled. Returns -1 if the part is never
+        /// decoupled from the vessel.
         /// </summary>
         [KRPCProperty]
         public int DecoupleStage {
@@ -149,7 +200,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// Whether the part is <a href="http://wiki.kerbalspaceprogram.com/wiki/Massless_part">massless</a>.
+        /// Whether the part is
+        /// <a href="https://wiki.kerbalspaceprogram.com/wiki/Massless_part">massless</a>.
         /// </summary>
         [KRPCProperty]
         public bool Massless {
@@ -166,7 +218,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The mass of the part, not including any resources it contains, in kilograms. Returns zero if the part is massless.
+        /// The mass of the part, not including any resources it contains, in kilograms.
+        /// Returns zero if the part is massless.
         /// </summary>
         [KRPCProperty]
         public double DryMass {
@@ -230,7 +283,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// A measure of how much energy it takes to increase the internal temperature of the part, in Joules per Kelvin.
+        /// A measure of how much energy it takes to increase the internal temperature of the part,
+        /// in Joules per Kelvin.
         /// </summary>
         [KRPCProperty]
         public float ThermalMass {
@@ -238,7 +292,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// A measure of how much energy it takes to increase the skin temperature of the part, in Joules per Kelvin.
+        /// A measure of how much energy it takes to increase the skin temperature of the part,
+        /// in Joules per Kelvin.
         /// </summary>
         [KRPCProperty]
         public float ThermalSkinMass {
@@ -246,7 +301,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// A measure of how much energy it takes to increase the temperature of the resources contained in the part, in Joules per Kelvin.
+        /// A measure of how much energy it takes to increase the temperature of the resources
+        /// contained in the part, in Joules per Kelvin.
         /// </summary>
         [KRPCProperty]
         public float ThermalResourceMass {
@@ -257,7 +313,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// The rate at which heat energy is begin generated by the part.
         /// For example, some engines generate heat by combusting fuel.
         /// Measured in energy per unit time, or power, in Watts.
-        /// A positive value means the part is gaining heat energy, and negative means it is losing heat energy.
+        /// A positive value means the part is gaining heat energy, and negative means it is losing
+        /// heat energy.
         /// </summary>
         [KRPCProperty]
         public float ThermalInternalFlux {
@@ -265,9 +322,10 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The rate at which heat energy is conducting into or out of the part via contact with other parts.
-        /// Measured in energy per unit time, or power, in Watts.
-        /// A positive value means the part is gaining heat energy, and negative means it is losing heat energy.
+        /// The rate at which heat energy is conducting into or out of the part via contact with
+        /// other parts. Measured in energy per unit time, or power, in Watts.
+        /// A positive value means the part is gaining heat energy, and negative means it is
+        /// losing heat energy.
         /// </summary>
         [KRPCProperty]
         public float ThermalConductionFlux {
@@ -275,9 +333,10 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The rate at which heat energy is convecting into or out of the part from the surrounding atmosphere.
-        /// Measured in energy per unit time, or power, in Watts.
-        /// A positive value means the part is gaining heat energy, and negative means it is losing heat energy.
+        /// The rate at which heat energy is convecting into or out of the part from the
+        /// surrounding atmosphere. Measured in energy per unit time, or power, in Watts.
+        /// A positive value means the part is gaining heat energy, and negative means it is
+        /// losing heat energy.
         /// </summary>
         [KRPCProperty]
         public float ThermalConvectionFlux {
@@ -285,9 +344,10 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The rate at which heat energy is radiating into or out of the part from the surrounding environment.
-        /// Measured in energy per unit time, or power, in Watts.
-        /// A positive value means the part is gaining heat energy, and negative means it is losing heat energy.
+        /// The rate at which heat energy is radiating into or out of the part from the surrounding
+        /// environment. Measured in energy per unit time, or power, in Watts.
+        /// A positive value means the part is gaining heat energy, and negative means it is
+        /// losing heat energy.
         /// </summary>
         [KRPCProperty]
         public float ThermalRadiationFlux {
@@ -336,7 +396,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The parts that are connected to this part via fuel lines, where the direction of the fuel line is into this part.
+        /// The parts that are connected to this part via fuel lines, where the direction of the
+        /// fuel line is into this part.
         /// </summary>
         [KRPCProperty]
         public IList<Part> FuelLinesFrom {
@@ -347,7 +408,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The parts that are connected to this part via fuel lines, where the direction of the fuel line is out of this part.
+        /// The parts that are connected to this part via fuel lines, where the direction of the
+        /// fuel line is out of this part.
         /// </summary>
         [KRPCProperty]
         public IList<Part> FuelLinesTo {
@@ -378,17 +440,26 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
+        /// A <see cref="Antenna"/> if the part is an antenna, otherwise <c>null</c>.
+        /// </summary>
+        [KRPCProperty (Nullable = true)]
+        public Antenna Antenna {
+            get { return Antenna.Is (this) ? new Antenna (this) : null; }
+        }
+
+        /// <summary>
         /// A <see cref="CargoBay"/> if the part is a cargo bay, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public CargoBay CargoBay {
             get { return CargoBay.Is (this) ? new CargoBay (this) : null; }
         }
 
         /// <summary>
-        /// A <see cref="ControlSurface"/> if the part is an aerodynamic control surface, otherwise <c>null</c>.
+        /// A <see cref="ControlSurface"/> if the part is an aerodynamic control surface,
+        /// otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public ControlSurface ControlSurface {
             get { return ControlSurface.Is (this) ? new ControlSurface (this) : null; }
         }
@@ -396,7 +467,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// <summary>
         /// A <see cref="Decoupler"/> if the part is a decoupler, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public Decoupler Decoupler {
             get { return Decoupler.Is (this) ? new Decoupler (this) : null; }
         }
@@ -404,7 +475,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// <summary>
         /// A <see cref="DockingPort"/> if the part is a docking port, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public DockingPort DockingPort {
             get { return DockingPort.Is (this) ? new DockingPort (this) : null; }
         }
@@ -412,23 +483,48 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// <summary>
         /// An <see cref="Engine"/> if the part is an engine, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public Engine Engine {
             get { return Engine.Is (this) ? new Engine (this) : null; }
         }
 
         /// <summary>
-        /// An <see cref="Experiment"/> if the part is a science experiment, otherwise <c>null</c>.
+        /// An <see cref="Experiment"/> if the part contains a
+        /// single science experiment, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
-        public Experiment Experiment {
-            get { return Experiment.Is (this) ? new Experiment (this) : null; }
+        /// <remarks>
+        /// Throws an exception if the part contains more than one experiment.
+        /// In that case, use <see cref="Experiments"/> to get the list of experiments in the part.
+        /// </remarks>
+        [KRPCProperty(Nullable = true)]
+        public Experiment Experiment
+        {
+            get {
+                var modules = InternalPart.Modules.OfType<ModuleScienceExperiment>();
+                if (modules.Count() > 1)
+                    throw new InvalidOperationException("Part contains multiple experiments.");
+                if (!modules.Any())
+                    return null;
+                return new Experiment(this, modules.First());
+            }
+        }
+
+        /// <summary>
+        /// A list of <see cref="Experiment"/> objects that the part contains.
+        /// </summary>
+        [KRPCProperty(Nullable = true)]
+        public IList<Experiment> Experiments
+        {
+            get {
+                return InternalPart.Modules.OfType<ModuleScienceExperiment>()
+                    .Select((module) => new Experiment(this, module)).ToList();
+            }
         }
 
         /// <summary>
         /// A <see cref="Fairing"/> if the part is a fairing, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public Fairing Fairing {
             get { return Fairing.Is (this) ? new Fairing (this) : null; }
         }
@@ -437,35 +533,27 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// An <see cref="Intake"/> if the part is an intake, otherwise <c>null</c>.
         /// </summary>
         /// <remarks>
-        /// This includes any part that generates thrust. This covers many different types of engine,
-        /// including liquid fuel rockets, solid rocket boosters and jet engines.
+        /// This includes any part that generates thrust. This covers many different types
+        /// of engine, including liquid fuel rockets, solid rocket boosters and jet engines.
         /// For RCS thrusters see <see cref="RCS"/>.
         /// </remarks>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public Intake Intake {
             get { return Intake.Is (this) ? new Intake (this) : null; }
         }
 
         /// <summary>
-        /// A <see cref="LandingGear"/> if the part is a landing gear, otherwise <c>null</c>.
+        /// A <see cref="Leg"/> if the part is a landing leg, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
-        public LandingGear LandingGear {
-            get { return LandingGear.Is (this) ? new LandingGear (this) : null; }
-        }
-
-        /// <summary>
-        /// A <see cref="LandingLeg"/> if the part is a landing leg, otherwise <c>null</c>.
-        /// </summary>
-        [KRPCProperty]
-        public LandingLeg LandingLeg {
-            get { return LandingLeg.Is (this) ? new LandingLeg (this) : null; }
+        [KRPCProperty (Nullable = true)]
+        public Leg Leg {
+            get { return Leg.Is (this) ? new Leg (this) : null; }
         }
 
         /// <summary>
         /// A <see cref="LaunchClamp"/> if the part is a launch clamp, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public LaunchClamp LaunchClamp {
             get { return LaunchClamp.Is (this) ? new LaunchClamp (this) : null; }
         }
@@ -473,7 +561,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// <summary>
         /// A <see cref="Light"/> if the part is a light, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public Light Light {
             get { return Light.Is (this) ? new Light (this) : null; }
         }
@@ -481,7 +569,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// <summary>
         /// A <see cref="Parachute"/> if the part is a parachute, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public Parachute Parachute {
             get { return Parachute.Is (this) ? new Parachute (this) : null; }
         }
@@ -489,7 +577,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// <summary>
         /// A <see cref="Radiator"/> if the part is a radiator, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public Radiator Radiator {
             get { return Radiator.Is (this) ? new Radiator (this) : null; }
         }
@@ -497,7 +585,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// <summary>
         /// A <see cref="RCS"/> if the part is an RCS block/thruster, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public RCS RCS {
             get { return RCS.Is (this) ? new RCS (this) : null; }
         }
@@ -505,23 +593,25 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// <summary>
         /// A <see cref="ReactionWheel"/> if the part is a reaction wheel, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public ReactionWheel ReactionWheel {
             get { return ReactionWheel.Is (this) ? new ReactionWheel (this) : null; }
         }
 
         /// <summary>
-        /// A <see cref="ResourceConverter"/> if the part is a resource converter, otherwise <c>null</c>.
+        /// A <see cref="ResourceConverter"/> if the part is a resource converter,
+        /// otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public ResourceConverter ResourceConverter {
             get { return ResourceConverter.Is (this) ? new ResourceConverter (this) : null; }
         }
 
         /// <summary>
-        /// A <see cref="ResourceHarvester"/> if the part is a resource harvester, otherwise <c>null</c>.
+        /// A <see cref="ResourceHarvester"/> if the part is a resource harvester,
+        /// otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public ResourceHarvester ResourceHarvester {
             get { return ResourceHarvester.Is (this) ? new ResourceHarvester (this) : null; }
         }
@@ -529,7 +619,7 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// <summary>
         /// A <see cref="Sensor"/> if the part is a sensor, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public Sensor Sensor {
             get { return Sensor.Is (this) ? new Sensor (this) : null; }
         }
@@ -537,25 +627,35 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// <summary>
         /// A <see cref="SolarPanel"/> if the part is a solar panel, otherwise <c>null</c>.
         /// </summary>
-        [KRPCProperty]
+        [KRPCProperty (Nullable = true)]
         public SolarPanel SolarPanel {
             get { return SolarPanel.Is (this) ? new SolarPanel (this) : null; }
         }
 
         /// <summary>
+        /// A <see cref="Wheel"/> if the part is a wheel, otherwise <c>null</c>.
+        /// </summary>
+        [KRPCProperty (Nullable = true)]
+        public Wheel Wheel {
+            get { return Wheel.Is (this) ? new Wheel (this) : null; }
+        }
+
+        /// <summary>
         /// The position of the part in the given reference frame.
         /// </summary>
+        /// <returns>The position as a vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// position vector is in.</param>
         /// <remarks>
         /// This is a fixed position in the part, defined by the parts model.
         /// It s not necessarily the same as the parts center of mass.
         /// Use <see cref="CenterOfMass"/> to get the parts center of mass.
         /// </remarks>
-        /// <param name="referenceFrame"></param>
         [KRPCMethod]
         public Tuple3 Position (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.PositionFromWorldSpace (InternalPart.transform.position).ToTuple ();
         }
 
@@ -563,50 +663,80 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// The position of the parts center of mass in the given reference frame.
         /// If the part is physicsless, this is equivalent to <see cref="Position"/>.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The position as a vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// position vector is in.</param>
         [KRPCMethod]
         public Tuple3 CenterOfMass (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.PositionFromWorldSpace (InternalPart.CenterOfMass ()).ToTuple ();
         }
 
         /// <summary>
-        /// The direction of the part in the given reference frame.
+        /// The axis-aligned bounding box of the part in the given reference frame.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The positions of the minimum and maximum vertices of the box,
+        /// as position vectors.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// position vectors are in.</param>
+        /// <remarks>
+        /// This is computed from the collision mesh of the part.
+        /// If the part is not collidable, the box has zero volume and is centered on
+        /// the <see cref="Position"/> of the part.
+        /// </remarks>
+        [KRPCMethod]
+        [SuppressMessage ("Gendarme.Rules.Design.Generic", "DoNotExposeNestedGenericSignaturesRule")]
+        public TupleT3 BoundingBox (ReferenceFrame referenceFrame)
+        {
+            if (ReferenceEquals (referenceFrame, null))
+                throw new ArgumentNullException (nameof (referenceFrame));
+            return InternalPart.GetBounds (referenceFrame).ToTuples ();
+        }
+
+        /// <summary>
+        /// The direction the part points in, in the given reference frame.
+        /// </summary>
+        /// <returns>The direction as a unit vector.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// direction is in.</param>
         [KRPCMethod]
         public Tuple3 Direction (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             return referenceFrame.DirectionFromWorldSpace (InternalPart.transform.up).ToTuple ();
         }
 
         /// <summary>
-        /// The velocity of the part in the given reference frame.
+        /// The linear velocity of the part in the given reference frame.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The velocity as a vector. The vector points in the direction of travel,
+        /// and its magnitude is the speed of the body in meters per second.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// velocity vector is in.</param>
         [KRPCMethod]
         public Tuple3 Velocity (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
+                throw new ArgumentNullException (nameof (referenceFrame));
             var part = InternalPart;
             return referenceFrame.VelocityFromWorldSpace (part.transform.position, part.orbit.GetVel ()).ToTuple ();
         }
 
         /// <summary>
-        /// The rotation of the part in the given reference frame.
+        /// The rotation of the part, in the given reference frame.
         /// </summary>
-        /// <param name="referenceFrame"></param>
+        /// <returns>The rotation as a quaternion of the form <math>(x, y, z, w)</math>.</returns>
+        /// <param name="referenceFrame">The reference frame that the returned
+        /// rotation is in.</param>
         [KRPCMethod]
         public Tuple4 Rotation (ReferenceFrame referenceFrame)
         {
             if (ReferenceEquals (referenceFrame, null))
-                throw new ArgumentNullException ("referenceFrame");
-            return referenceFrame.RotationToWorldSpace (InternalPart.transform.rotation).ToTuple ();
+                throw new ArgumentNullException (nameof (referenceFrame));
+            return referenceFrame.RotationFromWorldSpace (InternalPart.transform.rotation).ToTuple ();
         }
 
         /// <summary>
@@ -619,7 +749,8 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The inertia tensor of the part in the parts reference frame (<see cref="ReferenceFrame"/>).
+        /// The inertia tensor of the part in the parts reference frame
+        /// (<see cref="ReferenceFrame"/>).
         /// Returns the 3x3 matrix as a list of elements, in row-major order.
         /// </summary>
         [KRPCProperty]
@@ -650,16 +781,20 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The reference frame that is fixed relative to this part, and centered on a fixed position within the part, defined by the parts model.
+        /// The reference frame that is fixed relative to this part, and centered on a fixed
+        /// position within the part, defined by the parts model.
         /// <list type="bullet">
-        /// <item><description>The origin is at the position of the part, as returned by <see cref="Position"/>.</description></item>
+        /// <item><description>The origin is at the position of the part, as returned by
+        /// <see cref="Position"/>.</description></item>
         /// <item><description>The axes rotate with the part.</description></item>
-        /// <item><description>The x, y and z axis directions depend on the design of the part.</description></item>
+        /// <item><description>The x, y and z axis directions depend on the design of the part.
+        /// </description></item>
         /// </list>
         /// </summary>
         /// <remarks>
-        /// For docking port parts, this reference frame is not necessarily equivalent to the reference frame
-        /// for the docking port, returned by <see cref="DockingPort.ReferenceFrame"/>.
+        /// For docking port parts, this reference frame is not necessarily equivalent to the
+        /// reference frame for the docking port, returned by
+        /// <see cref="DockingPort.ReferenceFrame"/>.
         /// </remarks>
         [KRPCProperty]
         public ReferenceFrame ReferenceFrame {
@@ -667,16 +802,20 @@ namespace KRPC.SpaceCenter.Services.Parts
         }
 
         /// <summary>
-        /// The reference frame that is fixed relative to this part, and centered on its center of mass.
+        /// The reference frame that is fixed relative to this part, and centered on its
+        /// center of mass.
         /// <list type="bullet">
-        /// <item><description>The origin is at the center of mass of the part, as returned by <see cref="CenterOfMass"/>.</description></item>
+        /// <item><description>The origin is at the center of mass of the part, as returned by
+        /// <see cref="CenterOfMass"/>.</description></item>
         /// <item><description>The axes rotate with the part.</description></item>
-        /// <item><description>The x, y and z axis directions depend on the design of the part.</description></item>
+        /// <item><description>The x, y and z axis directions depend on the design of the part.
+        /// </description></item>
         /// </list>
         /// </summary>
         /// <remarks>
-        /// For docking port parts, this reference frame is not necessarily equivalent to the reference frame
-        /// for the docking port, returned by <see cref="DockingPort.ReferenceFrame"/>.
+        /// For docking port parts, this reference frame is not necessarily equivalent to the
+        /// reference frame for the docking port, returned by
+        /// <see cref="DockingPort.ReferenceFrame"/>.
         /// </remarks>
         [KRPCProperty]
         public ReferenceFrame CenterOfMassReferenceFrame {
@@ -685,8 +824,13 @@ namespace KRPC.SpaceCenter.Services.Parts
 
         /// <summary>
         /// Exert a constant force on the part, acting at the given position.
-        /// Returns an object that can be used to remove or modify the force.
         /// </summary>
+        /// <returns>An object that can be used to remove or modify the force.</returns>
+        /// <param name="force">A vector pointing in the direction that the force acts,
+        /// with its magnitude equal to the strength of the force in Newtons.</param>
+        /// <param name="position">The position at which the force acts, as a vector.</param>
+        /// <param name="referenceFrame">The reference frame that the
+        /// force and position are in.</param>
         [KRPCMethod]
         public Force AddForce (Tuple3 force, Tuple3 position, ReferenceFrame referenceFrame)
         {
@@ -698,9 +842,12 @@ namespace KRPC.SpaceCenter.Services.Parts
         /// <summary>
         /// Exert an instantaneous force on the part, acting at the given position.
         /// </summary>
-        /// <remarks>
-        /// The force is applied instantaneously in a single physics update.
-        /// </remarks>
+        /// <param name="force">A vector pointing in the direction that the force acts,
+        /// with its magnitude equal to the strength of the force in Newtons.</param>
+        /// <param name="position">The position at which the force acts, as a vector.</param>
+        /// <param name="referenceFrame">The reference frame that the
+        /// force and position are in.</param>
+        /// <remarks>The force is applied instantaneously in a single physics update.</remarks>
         [KRPCMethod]
         public void InstantaneousForce (Tuple3 force, Tuple3 position, ReferenceFrame referenceFrame)
         {

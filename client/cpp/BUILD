@@ -1,9 +1,9 @@
-load('/tools/build/autotools', 'autotools_dist')
-load('/tools/build/cpp', 'cpp_check_test', 'cpp_lint_test')
-load('/tools/build/protobuf/cpp', 'protobuf_cpp')
-load('/tools/build/client_test', 'client_test')
-load('/tools/krpctools/clientgen', 'clientgen_cpp')
-load('/config', 'version')
+load('//tools/build:autotools.bzl', 'autotools_dist')
+load('//tools/build:cpp.bzl', 'cpp_check_test', 'cpp_lint_test')
+load('//tools/build/protobuf:cpp.bzl', 'protobuf_cpp')
+load('//tools/build:client_test.bzl', 'client_test')
+load('//tools/krpctools:clientgen.bzl', 'clientgen_cpp')
+load('//:config.bzl', 'version')
 
 name = 'krpc-cpp-%s' % version
 
@@ -17,6 +17,8 @@ autotools_dist(
         ':autotools', '@m4_stdcxx//file', '@m4_stdcxx_11//file',
         ':cmake',
         '//protobuf:cpp',
+        '//protobuf:krpc.proto',
+        'protobuf-include.cmake',
         ':services-krpc',
         ':services-spacecenter',
         ':services-drawing',
@@ -31,11 +33,9 @@ autotools_dist(
         'COPYING.LESSER': '%s/COPYING.LESSER' % name,
         'README.txt': '%s/README.txt' % name,
         'VERSION.txt': '%s/VERSION.txt' % name,
-        'client/cpp/': '%s/' % name,
-        'protobuf/krpc.pb.hpp': '%s/include/krpc/krpc.pb.hpp' % name,
-        'protobuf/krpc.pb.cpp': '%s/src/krpc.pb.cpp' % name,
-        '../m4_stdcxx/file/gitweb': '%s/m4/ax_cxx_compile_stdcxx.m4' % name,
-        '../m4_stdcxx_11/file/gitweb': '%s/m4/ax_cxx_compile_stdcxx_11.m4' % name
+        'protobuf/': '%s/protobuf/' % name,
+        '../m4_stdcxx/file/downloaded': '%s/m4/ax_cxx_compile_stdcxx.m4' % name,
+        '../m4_stdcxx_11/file/downloaded': '%s/m4/ax_cxx_compile_stdcxx_11.m4' % name
     },
     visibility = ['//:__pkg__']
 )
@@ -126,18 +126,23 @@ cc_library(
     srcs = srcs + [':protobuf'],
     hdrs = hdrs + [':protobuf'],
     includes = ['include'],
-    deps = ['@protobuf//:protobuf', '@cpp_asio//:asio'],
+    deps = ['@com_google_protobuf//:protobuf', '@cpp_asio//:asio'],
     visibility = ['//visibility:public']
 )
 
 test_suite(
     name = 'test',
-    tests = [':client', ':check', ':lint']
+    tests = [':client', ':lint']
 )
 
 test_suite(
     name = 'ci-test',
     tests = [':client']
+)
+
+test_suite(
+    name = 'lint',
+    tests = [':cppcheck', ':cpplint']
 )
 
 client_test(
@@ -161,7 +166,7 @@ cc_binary(
 )
 
 cpp_check_test(
-    name = 'check',
+    name = 'cppcheck',
     srcs = srcs + test_srcs,
     hdrs = hdrs,
     includes = ['include'],
@@ -169,11 +174,11 @@ cpp_check_test(
 )
 
 cpp_lint_test(
-    name = 'lint',
+    name = 'cpplint',
     srcs = srcs + test_srcs,
     hdrs = hdrs,
     includes = ['include'],
-    filters = ['-legal/copyright', '-readability/todo', '-runtime/references'], #FIXME: dont pass non-const references
+    filters = ['+build/include_alpha', '-legal/copyright', '-readability/todo', '-runtime/references'], #FIXME: dont pass non-const references
     extra_files = ['include/krpc/services/CPPLINT.cfg', 'test/services/CPPLINT.cfg'],
     size = 'small'
 )

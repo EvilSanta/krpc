@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Reflection;
 
 namespace KRPC.Utils
@@ -16,12 +17,12 @@ namespace KRPC.Utils
                     continue;
                 Type[] types;
                 try {
+                    // FIXME: on 2nd pass or later, GetTypes start raising exception like below
+                    // > Could not load type of field 'KRPC.Drawing.Text:mesh' (1) due to: Could not load file or assembly 'UnityEngine.TextRenderingModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null' or one of its dependencies.
+                    // Workaround seems to load complaining assembly to this program.
                     types = assembly.GetTypes ();
-                } catch (ReflectionTypeLoadException) {
-                    // FIXME: should include loadable types from partially loadable assembly, but causes MonoDevelop crash:
-                    // Assertion at class.c:5594, condition `!mono_loader_get_last_error ()
-                    //types = e.Types.Where (x => x != null).ToArray ();
-                    types = Type.EmptyTypes;
+                } catch (ReflectionTypeLoadException exn) {
+                    types = exn.Types.Where (x => x != null).ToArray ();
                 }
                 foreach (var type in types)
                     yield return type;
@@ -91,8 +92,17 @@ namespace KRPC.Utils
         {
             object[] attributes = member.GetCustomAttributes (typeof(T), false);
             if (attributes.Length != 1)
-                throw new ArgumentException ("Does not have any attributes", "member");
+                throw new ArgumentException ("Does not have any attributes", nameof (member));
             return (T)attributes [0];
+        }
+
+        /// <summary>
+        /// Return attributes of type T for the given member. Does not follow inheritance.
+        /// </summary>
+        [SuppressMessage ("Gendarme.Rules.Design.Generic", "AvoidMethodWithUnusedGenericTypeRule")]
+        public static IEnumerable<T> GetAttributes<T> (ICustomAttributeProvider member)
+        {
+            return member.GetCustomAttributes (typeof(T), false).Cast<T> ();
         }
 
         /// <summary>

@@ -1,8 +1,9 @@
-load('/tools/build/protobuf/csharp', 'protobuf_csharp')
-load('/tools/build/protobuf/python', 'protobuf_py')
-load('/tools/build/protobuf/cpp', 'protobuf_cpp')
-load('/tools/build/protobuf/lua', 'protobuf_lua')
-load('/tools/build/protobuf/java', 'protobuf_java')
+load('//tools/build/protobuf:cpp.bzl', 'protobuf_cpp')
+load('//tools/build/protobuf:csharp.bzl', 'protobuf_csharp')
+load('//tools/build/protobuf:java.bzl', 'protobuf_java')
+load('//tools/build/protobuf:lua.bzl', 'protobuf_lua')
+load('//tools/build/protobuf:nanopb.bzl', 'protobuf_nanopb')
+load('//tools/build/protobuf:python.bzl', 'protobuf_py')
 
 package(default_visibility = ['//visibility:public'])
 
@@ -16,7 +17,7 @@ protobuf_csharp(
 
 protobuf_py(
     name = 'python',
-    out = 'KRPC.py',
+    out = 'KRPC_pb2.py',
     src = 'krpc.proto'
 )
 
@@ -24,7 +25,7 @@ protobuf_cpp(
     name = 'cpp',
     header = 'krpc.pb.hpp',
     source = 'krpc.pb.cpp',
-    include = 'krpc.pb.hpp',
+    include = 'krpc/krpc.pb.hpp',
     src = 'krpc.proto'
 )
 
@@ -34,8 +35,25 @@ protobuf_lua(
     src = 'krpc.proto'
 )
 
-protobuf_java(
+# Workaround to fix redundant casts in protobuf v3.1.0 generated output
+genrule(
     name = 'java',
-    out = 'KRPC.java',
+    srcs = [':java_gen'],
+    outs = ['KRPC.java'],
+    cmd = 'sed \'s/(Builder) super/super/g\' $(location :java_gen) > "$@"'
+)
+
+protobuf_java(
+    name = 'java_gen',
+    out = 'KRPC.java.tmp',
     src = 'krpc.proto'
+)
+
+protobuf_nanopb(
+    name = 'cnano',
+    header = 'krpc.pb.h',
+    source = 'krpc.pb.c',
+    include = 'krpc.pb.h',
+    src = 'krpc.proto',
+    options = '//client/cnano:src/krpc.options'
 )

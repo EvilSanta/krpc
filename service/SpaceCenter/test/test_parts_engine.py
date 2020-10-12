@@ -1,6 +1,7 @@
 import unittest
 import krpctest
 
+
 class EngineTestBase(object):
 
     engine_data = {
@@ -10,9 +11,9 @@ class EngineTestBase(object):
             'throttle_locked': False,
             'can_restart': True,
             'can_shutdown': True,
-            'max_vac_thrust': 215000,
-            'msl_isp': 280,
-            'vac_isp': 300,
+            'max_vac_thrust': 240000,
+            'msl_isp': 265,
+            'vac_isp': 310,
             'modes': None
         },
         'LV-T45 "Swivel" Liquid Fuel Engine': {
@@ -22,8 +23,8 @@ class EngineTestBase(object):
             'throttle_locked': False,
             'can_restart': True,
             'can_shutdown': True,
-            'max_vac_thrust': 200000,
-            'msl_isp': 270,
+            'max_vac_thrust': 215000,
+            'msl_isp': 250,
             'vac_isp': 320,
             'modes': None
         },
@@ -51,7 +52,8 @@ class EngineTestBase(object):
         },
         'O-10 "Puff" MonoPropellant Fuel Engine': {
             'propellants': {'MonoPropellant': 1.},
-            'gimballed': False,
+            'gimballed': True,
+            'gimbal_range': 6,
             'throttle_locked': False,
             'can_restart': True,
             'can_shutdown': True,
@@ -72,7 +74,7 @@ class EngineTestBase(object):
             'modes': None
         },
         'J-33 "Wheesley" Basic Jet Engine': {
-            'propellants': {'IntakeAir': 1., 'LiquidFuel': 0.090909},
+            'propellants': {'IntakeAir': 1., 'LiquidFuel': 0.09090909},
             'gimballed': True,
             'gimbal_range': 1,
             'throttle_locked': False,
@@ -121,17 +123,22 @@ class EngineTestBase(object):
         if not data['throttle_locked']:
             self.assertAlmostEqual(value, engine.throttle)
 
+
 class EngineTest(EngineTestBase):
 
     def check_engine_properties(self, engine):
         """ Check engine properties independent of activity/throttle """
         data = self.engine_data[engine.part.title]
-        self.assertAlmostEqual(data['max_vac_thrust'], engine.max_vacuum_thrust)
-        self.assertItemsEqual(data['propellants'].keys(), engine.propellant_names)
-        self.assertAlmostEqual(data['propellants'], engine.propellant_ratios, places=3)
+        self.assertAlmostEqual(
+            data['max_vac_thrust'], engine.max_vacuum_thrust)
+        self.assertItemsEqual(
+            data['propellants'].keys(), engine.propellant_names)
+        self.assertAlmostEqual(
+            data['propellants'], engine.propellant_ratios, places=3)
         self.assertTrue(engine.has_fuel)
         self.assertEqual(data['throttle_locked'], engine.throttle_locked)
-        self.assertAlmostEqual(data['msl_isp'], engine.kerbin_sea_level_specific_impulse)
+        self.assertAlmostEqual(
+            data['msl_isp'], engine.kerbin_sea_level_specific_impulse)
         self.assertAlmostEqual(data['vac_isp'], engine.vacuum_specific_impulse)
         self.assertEqual(data['can_restart'], engine.can_restart)
         self.assertEqual(data['can_shutdown'], engine.can_shutdown)
@@ -152,11 +159,14 @@ class EngineTest(EngineTestBase):
         self.assertFalse(engine.active)
         self.assertAlmostEqual(1, engine.thrust_limit)
         self.assertEqual(0, engine.thrust)
-        self.assertAlmostEqual(data['max_thrust'], engine.available_thrust, delta=500)
-        self.assertAlmostEqual(data['max_thrust'], engine.max_thrust, delta=500)
+        self.assertAlmostEqual(
+            data['max_thrust'], engine.available_thrust, delta=500)
+        self.assertAlmostEqual(
+            data['max_thrust'], engine.max_thrust, delta=500)
         self.assertAlmostEqual(0, engine.specific_impulse, delta=5)
         self.assertTrue(engine.has_fuel)
-        self.assertAlmostEqual((0, 0, 0), engine.available_torque)
+        self.assertAlmostEqual((0, 0, 0), engine.available_torque[0])
+        self.assertAlmostEqual((0, 0, 0), engine.available_torque[1])
 
     def check_engine_active(self, engine, throttle):
         """ Check engine properties when engine is activated """
@@ -164,15 +174,20 @@ class EngineTest(EngineTestBase):
         self.assertTrue(engine.active)
         self.assertAlmostEqual(throttle, engine.throttle, places=2)
         self.assertAlmostEqual(1, engine.thrust_limit, delta=1)
-        self.assertAlmostEqual(data['max_thrust'] * throttle, engine.thrust, delta=500)
-        self.assertAlmostEqual(data['max_thrust'], engine.available_thrust, delta=500)
-        self.assertAlmostEqual(data['max_thrust'], engine.max_thrust, delta=500)
+        self.assertAlmostEqual(
+            data['max_thrust'] * throttle, engine.thrust, delta=500)
+        self.assertAlmostEqual(
+            data['max_thrust'], engine.available_thrust, delta=500)
+        self.assertAlmostEqual(
+            data['max_thrust'], engine.max_thrust, delta=500)
         self.assertAlmostEqual(data['isp'], engine.specific_impulse, delta=5)
         self.assertTrue(engine.has_fuel)
         if data['gimballed'] and throttle > 0:
-            self.assertGreater(engine.available_torque, (100, 100, 100))
+            self.assertGreater(engine.available_torque[0], (100, 100, 100))
+            self.assertLess(engine.available_torque[1], (-100, -100, -100))
         else:
-            self.assertAlmostEqual((0, 0, 0), engine.available_torque)
+            self.assertAlmostEqual((0, 0, 0), engine.available_torque[0])
+            self.assertAlmostEqual((0, 0, 0), engine.available_torque[1])
 
     def check_engine(self, engine):
         self.set_idle(engine)
@@ -220,6 +235,7 @@ class EngineTest(EngineTestBase):
         self.check_engine_active(engine, 1)
         self.set_idle(engine)
 
+
 class TestPartsEngine(krpctest.TestCase, EngineTestBase):
 
     @classmethod
@@ -236,7 +252,7 @@ class TestPartsEngine(krpctest.TestCase, EngineTestBase):
 
     def test_has_no_fuel(self):
         engine = self.get_engine('LV-909 "Terrier" Liquid Fuel Engine')
-        #FIXME: have to activate engine for this to work
+        # FIXME: have to activate engine for this to work
         engine.active = True
         self.wait()
         self.assertFalse(engine.has_fuel)
@@ -244,7 +260,7 @@ class TestPartsEngine(krpctest.TestCase, EngineTestBase):
 
     def test_thrust_limit(self):
         engine = self.get_engine('LV-T30 "Reliant" Liquid Fuel Engine')
-        thrust = 201000
+        thrust = 205600
 
         engine.active = False
         engine.thrust_limit = 1
@@ -262,8 +278,10 @@ class TestPartsEngine(krpctest.TestCase, EngineTestBase):
                 engine.thrust_limit = thrust_limit
                 self.assertAlmostEqual(thrust_limit, engine.thrust_limit)
                 self.wait(0.5)
-                self.assertAlmostEqual(throttle * thrust_limit * thrust, engine.thrust, delta=500)
-                self.assertAlmostEqual(thrust_limit * thrust, engine.available_thrust, delta=500)
+                self.assertAlmostEqual(
+                    throttle * thrust_limit * thrust, engine.thrust, delta=500)
+                self.assertAlmostEqual(
+                    thrust_limit * thrust, engine.available_thrust, delta=500)
                 self.assertAlmostEqual(thrust, engine.max_thrust, delta=500)
 
         engine.active = False
@@ -313,6 +331,7 @@ class TestPartsEngine(krpctest.TestCase, EngineTestBase):
         engine.gimbal_locked = False
         self.assertEqual(1, engine.gimbal_limit)
 
+
 class TestPartsEngineMSL(krpctest.TestCase, EngineTest):
 
     @classmethod
@@ -324,10 +343,10 @@ class TestPartsEngineMSL(krpctest.TestCase, EngineTest):
         cls.parts = cls.vessel.parts
         cls.add_engine_data(
             'LV-T30 "Reliant" Liquid Fuel Engine',
-            {'max_thrust': 201000, 'isp': 280.5})
+            {'max_thrust': 205161, 'isp': 265})
         cls.add_engine_data(
             'LV-T45 "Swivel" Liquid Fuel Engine',
-            {'max_thrust': 169200, 'isp': 270.7})
+            {'max_thrust': 167969, 'isp': 250})
         cls.add_engine_data(
             'LV-N "Nerv" Atomic Rocket Motor',
             {'max_thrust': 14300, 'isp': 190.6})
@@ -342,10 +361,10 @@ class TestPartsEngineMSL(krpctest.TestCase, EngineTest):
             {'max_thrust': 197897, 'isp': 170.4})
         cls.add_engine_data(
             'J-33 "Wheesley" Basic Jet Engine',
-            {'max_thrust': 80000, 'isp': 9600})
+            {'max_thrust': 74884, 'isp': 9600})
         cls.add_engine_data(
             'CR-7 R.A.P.I.E.R. Engine',
-            {'max_thrust': 105000, 'isp': 3200})
+            {'max_thrust': 96895, 'isp': 3200})
 
     def test_jet_engine(self):
         engine = self.get_engine('J-33 "Wheesley" Basic Jet Engine')
@@ -355,7 +374,7 @@ class TestPartsEngineMSL(krpctest.TestCase, EngineTest):
         engine.active = True
         for throttle in (1, 0.6, 0.2):
             self.vessel.control.throttle = throttle
-            while abs(engine.throttle - throttle) > 0.1:
+            while abs(engine.throttle - throttle) > 0.02:
                 self.wait(1)
             self.check_engine_properties(engine)
             self.check_engine_active(engine, engine.throttle)
@@ -376,6 +395,7 @@ class TestPartsEngineMSL(krpctest.TestCase, EngineTest):
             self.check_engine_active(engine, engine.throttle)
         engine.active = False
 
+
 class TestPartsEngineVacuum(krpctest.TestCase, EngineTest):
 
     @classmethod
@@ -388,10 +408,10 @@ class TestPartsEngineVacuum(krpctest.TestCase, EngineTest):
         cls.parts = cls.vessel.parts
         cls.add_engine_data(
             'LV-T30 "Reliant" Liquid Fuel Engine',
-            {'max_thrust': 215000, 'isp': 300})
+            {'max_thrust': 240000, 'isp': 310})
         cls.add_engine_data(
             'LV-T45 "Swivel" Liquid Fuel Engine',
-            {'max_thrust': 200000, 'isp': 320})
+            {'max_thrust': 215000, 'isp': 320})
         cls.add_engine_data(
             'LV-N "Nerv" Atomic Rocket Motor',
             {'max_thrust': 60000, 'isp': 800})
@@ -423,6 +443,7 @@ class TestPartsEngineVacuum(krpctest.TestCase, EngineTest):
         engine = self.get_engine('CR-7 R.A.P.I.E.R. Engine')
         engine.mode = 'ClosedCycle'
         self.check_engine(engine)
+
 
 if __name__ == '__main__':
     unittest.main()
